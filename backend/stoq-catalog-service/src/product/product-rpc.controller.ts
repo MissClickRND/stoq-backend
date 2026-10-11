@@ -1,0 +1,66 @@
+import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
+import { Injectable } from "@nestjs/common";
+import { ProductService } from "./product.service";
+import { CreateProductDto } from "./dto/create-product.dto";
+import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitmq-topology";
+import { executeRpc } from "src/common/utils/rpc-handler";
+import { CreateUnitDto } from "./dto/create-unit.dto";
+
+@Injectable()
+export class ProductRPCController {
+  constructor(private readonly productService: ProductService) {}
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_PRODUCT,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  findAll(payload: { search?: string }) {
+    return executeRpc(() => this.productService.findAll(payload?.search));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_PRODUCT_BY_ID,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  findOne(payload: { id: number }) {
+    return executeRpc(() => this.productService.findOne(payload.id));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.CREATE_PRODUCT,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  create(payload: CreateProductDto) {
+    return executeRpc(() => this.productService.create(payload));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.CREATE_MANY_PRODUCT,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  createMany(payload: CreateProductDto[]) {
+    return executeRpc(() => this.productService.createMany(payload));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.DEL_PRODUCT_BY_ID,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  remove(payload: { id: number }) {
+    return executeRpc(() => this.productService.remove(payload.id));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.CREATE_UNIT,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  createUnit(payload: { dto: CreateUnitDto }) {
+    return executeRpc(() => this.productService.createUnit(payload.dto));
+  }
+}

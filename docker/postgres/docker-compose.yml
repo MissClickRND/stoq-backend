@@ -1,0 +1,27 @@
+name: stoq
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stoq-postgres
+    restart: unless-stopped
+    env_file: ./.env
+    ports:
+      - "${PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - stoq-network
+
+volumes:
+  postgres_data:
+
+networks:
+  stoq-network:
