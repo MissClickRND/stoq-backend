@@ -105,14 +105,15 @@ export class ProductService {
                 },
             });
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                if (error.code === "P2002") {
-                    (error.meta?.target as string[])?.join(", ") ?? "поле";
-                    throw new ConflictException(
-                        "Такая единица измерения уже существует",
-                    );
-                }
+            if (
+                error instanceof Prisma.PrismaClientKnownRequestError &&
+                error.code === "P2002"
+            ) {
+                throw new ConflictException(
+                    "Такая единица измерения уже существует",
+                );
             }
+
             throw error;
         }
     }
