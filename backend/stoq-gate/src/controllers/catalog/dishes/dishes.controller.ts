@@ -1,12 +1,12 @@
 import {
   Controller,
   Get,
-  Put,
   Delete,
   Param,
   Body,
   ParseIntPipe,
   HttpException,
+  Post,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -35,7 +35,7 @@ export class DishesController {
     return response.data;
   }
 
-  @Put()
+  @Post()
   @ApiOperation({ summary: 'Создать блюдо' })
   @ApiBody({ type: CreateDishDto })
   @ApiCreatedResponse({ description: 'Блюдо успешно создано' })

@@ -116,4 +116,22 @@ export class ProductService {
             throw error;
         }
     }
+
+    async findAllUnits() {
+        return this.prisma.unit.findMany({
+            orderBy: { id: "asc" },
+        });
+    }
+
+    async findOneUnit(id: number) {
+        const unit = await this.prisma.unit.findUnique({
+            where: { id },
+        });
+
+        if (!unit) {
+            throw new NotFoundException(`Unit with id ${id} not found`);
+        }
+
+        return unit;
+    }
 }

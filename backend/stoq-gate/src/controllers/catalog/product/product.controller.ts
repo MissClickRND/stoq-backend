@@ -8,7 +8,6 @@ import {
   ParseArrayPipe,
   ParseIntPipe,
   Post,
-  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -85,7 +84,7 @@ export class ProductController {
   @ApiNotFoundResponse({
     description: 'Указанная единица измерения не найдена',
   })
-  @Put()
+  @Post()
   async create(@Body() dto: CreateProductDto) {
     const payload = dto;
     const response = await this.commandBusService.sendCommand(
@@ -102,7 +101,7 @@ export class ProductController {
   @ApiNotFoundResponse({
     description: 'Указанная единица измерения не найдена',
   })
-  @Put("few")
+  @Post("few")
   async createMany(
     @Body(
       new ParseArrayPipe({
@@ -137,7 +136,7 @@ export class ProductController {
     return this.handleRpcResponse(response);
   }
 
-  @Put('units')
+  @Post('units')
   @ApiOperation({ summary: 'Создать единицу измерения' })
   @ApiBody({ type: CreateUnitDto })
   @ApiCreatedResponse({ description: 'Единица измерения успешно создана' })

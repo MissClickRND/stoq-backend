@@ -1,12 +1,12 @@
 import {
   Controller,
   Get,
-  Put,
   Delete,
   Param,
   Body,
   ParseIntPipe,
   HttpException,
+  Post,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -65,7 +65,7 @@ export class RecipesController {
     return this.handleRpcResponse(response);
   }
 
-  @Put()
+  @Post()
   @ApiOperation({ summary: 'Создать рецепт для блюда' })
   @ApiBody({ type: CreateRecipeDto })
   @ApiCreatedResponse({ description: 'Рецепт успешно создан' })
@@ -84,7 +84,7 @@ export class RecipesController {
     return this.handleRpcResponse(response);
   }
 
-  @Put(':recipeId')
+  @Post(':recipeId')
   @ApiOperation({ summary: 'Добавить продукты в рецепт' })
   @ApiParam({ name: 'recipeId', description: 'ID блюда', example: 1 })
   @ApiBody({ type: AddRecipeItemsDto })
