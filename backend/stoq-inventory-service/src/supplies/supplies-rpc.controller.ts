@@ -2,7 +2,7 @@ import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
 import { CreateSupplyDto } from "./dto/create-supply.dto";
 import { SupplyService } from "./supplies.service";
-import { EXCHANGES, ROUTING_KEYS, QUEUES } from "../common/rabbitmq-topology";
+import { EXCHANGES, ROUTING_KEYS, QUEUES } from "../common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "../common/utils/rpc-handler";
 
 @Injectable()

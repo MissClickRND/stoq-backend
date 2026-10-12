@@ -5,6 +5,6 @@ import { RecipesRPCController } from "./recipes-rpc.controller";
 
 @Module({
   providers: [RecipesService, RecipesRPCController],
-  controllers: [RecipesController],
+  // controllers: [RecipesController],
 })
 export class RecipesModule {}

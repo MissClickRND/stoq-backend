@@ -25,8 +25,8 @@ import {
 } from '@nestjs/swagger';
 
 import { CreateProductDto } from './dto/create-product.dto';
-import { CommandBusService } from 'src/infrastructure/rabbit/command-bus.service';
-import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitmq-topology';
+import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
+import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 import { CreateUnitDto } from './dto/create-unit.dto';
 
 @ApiTags('Товары')

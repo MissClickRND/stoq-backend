@@ -16,7 +16,7 @@ import {
 } from "@nestjs/swagger";
 
 import { InventoryService } from "./inventory.service";
-import { UpdateQuantityDto } from "./dto/update-quantity.dto";
+import { UpdateQuantityDto } from "./dto/request/update-quantity.dto";
 
 @ApiTags("Остатки")
 @Controller("inventory")

@@ -21,8 +21,8 @@ import {
 } from '@nestjs/swagger';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
 import { AddRecipeItemsDto } from './dto/add-recipe-item.dto';
-import { CommandBusService } from 'src/infrastructure/rabbit/command-bus.service';
-import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitmq-topology';
+import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
+import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @ApiTags('Рецепты')
 @Controller('recipes')

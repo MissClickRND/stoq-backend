@@ -1,6 +1,6 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
-import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitmq-topology";
+import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "src/common/utils/rpc-handler";
 import { RecipesService } from "./recipes.service";
 import { CreateRecipeDto } from "./dto/create-recipe.dto";

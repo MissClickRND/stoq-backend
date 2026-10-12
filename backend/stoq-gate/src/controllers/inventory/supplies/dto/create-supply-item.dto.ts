@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsInt, IsNumber, Min } from "class-validator";
+import { IsDate, IsInt, IsNumber, Min } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateSupplyItemDto {
@@ -22,10 +22,10 @@ export class CreateSupplyItemDto {
   quantity!: number;
 
   @ApiProperty({
-    description: "Срок годности в днях",
-    example: 7,
+    description: "Дата окончания срока годности",
+    example: "2026-10-19T10:00:00.000Z",
   })
-  @IsInt()
-  @Min(1)
-  shelfLifeDays!: number;
+  @Type(() => Date)
+  @IsDate()
+  expiresAt!: Date;
 }

@@ -23,7 +23,7 @@ import {
 } from "@nestjs/swagger";
 
 import { ProductService } from "./product.service";
-import { CreateProductDto } from "./dto/create-product.dto";
+import { CreateProductDto } from "./dto/request/create-product.dto";
 
 @ApiTags("Товары")
 @ApiExtraModels(CreateProductDto)
