@@ -108,6 +108,17 @@ export class DishesService {
         id,
         isDeleted: false,
       },
+      include: {
+        recipeItems: {
+          include: {
+            product: {
+              include: {
+                unit: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!dish) {
