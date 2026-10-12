@@ -12,3 +12,23 @@ datasource db {
   
 }
 
+enum StopListReason {
+  INSUFFICIENT_STOCK
+  EXPIRED_INGREDIENT
+}
+
+model StopListItem {
+  id                  Int             @id @default(autoincrement())
+  dishId              Int
+  reason              StopListReason
+  productId           Int
+  detectedAt          DateTime        @default(now())
+  resolvedAt          DateTime?
+  expectedReturnAt    DateTime?
+
+
+  @@index([dishId])
+  @@index([productId])
+  @@index([detectedAt])
+}
+
