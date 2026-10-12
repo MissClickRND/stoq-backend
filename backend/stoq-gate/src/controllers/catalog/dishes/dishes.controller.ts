@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   HttpException,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -17,6 +18,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { CreateDishDto } from './dto/create-dish.dto';
@@ -45,7 +47,6 @@ export class DishesController {
   })
   async create(@Body() dto: CreateDishDto) {
     const payload = { dto: dto };
-    console.log(payload)
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_DISHES,
@@ -56,9 +57,15 @@ export class DishesController {
 
   @Get()
   @ApiOperation({ summary: 'Получить список блюд' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Подстрока для поиска по названию блюда',
+    example: 'беф',
+  })
   @ApiOkResponse({ description: 'Список активных блюд' })
-  async findAll() {
-    const payload = {};
+  async findAll(@Query('search') search?: string) {
+    const payload = { search: search };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_DISHES,

@@ -11,27 +11,18 @@ export interface BatchWithProductResponseDto extends BatchResponseDto {
 export interface BatchResponseDto {
   id: number;
   supplyId: number;
-  productId: number;
-  initialQuantity: number;
+  Quantity: number;
   expiresAt: string;
   status: string;
-  balance: BatchBalanceResponseDto | null;
 }
 
 export function mapBatchToDto(batch: any): BatchResponseDto {
   return {
     id: batch.id,
     supplyId: batch.supplyId,
-    productId: batch.productId,
-    initialQuantity: batch.initialQuantity.toNumber(), 
+    Quantity: batch.balance.availableQuantity.toNumber(), 
     expiresAt: batch.expiresAt.toISOString(),
     status: batch.status,
-    balance: batch.balance 
-      ? {
-          availableQuantity: batch.balance.availableQuantity.toNumber(),
-          reservedQuantity: batch.balance.reservedQuantity.toNumber(),
-        } 
-      : null,
   };
 }
 

@@ -1,6 +1,6 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
-import { CreateSupplyDto } from "./dto/create-supply.dto";
+import { CreateSupplyDto } from "./dto/requests/create-supply.dto";
 import { SupplyService } from "./supplies.service";
 import { EXCHANGES, ROUTING_KEYS, QUEUES } from "../common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "../common/utils/rpc-handler";
@@ -23,8 +23,8 @@ export class SupplyRPCController {
     routingKey: ROUTING_KEYS.GET_SUPPLY,
     queue: QUEUES.INVENTORY_COMMANDS,
   })
-  async findAll() {
-    return executeRpc(() => this.supplyService.findAll());
+  async findAll(payload: {search?: string}) {
+    return executeRpc(() => this.supplyService.findAll(payload.search));
   }
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,

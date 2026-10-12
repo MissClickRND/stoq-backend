@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   HttpException,
   Put,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -13,6 +14,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 
@@ -34,9 +36,15 @@ export class InventoryController {
 
   @Get()
   @ApiOperation({ summary: 'Получить все продукты на складе' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Подстрока для поиска по названию товара',
+    example: 'мол',
+  })
   @ApiOkResponse({ description: 'Список продуктов на складе' })
-  async findAll() {
-    const payload = {};
+  async findAll(@Query('search') search?: string) {
+    const payload = { search: search };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_INVENTORY,

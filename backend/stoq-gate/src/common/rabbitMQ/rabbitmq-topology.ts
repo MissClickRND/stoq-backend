@@ -31,7 +31,11 @@ export const ROUTING_KEYS = {
   GET_DISHES_BY_ID: 'command.catalog.get_dishes_by_id', // GET /product/:id
   DEL_DISHES_BY_ID: 'command.catalog.del_dishes_by_id', // DEL /product/:id
 
-  // CREATE_ORDER: 'command.order.create',
+  CREATE_ORDER: 'command.order.create_order', // POST /orders
+  ADD_DISH_TO_ORDER: 'command.order.add_dish_to_order', // POST /orders/:id/items
+  GET_ORDER: 'command.order.get_order', // GET /orders
+  GET_ORDER_BY_ID: 'command.order.get_order_by_id', // GET /orders/:id
+  DEL_ORDER_BY_ID: 'command.order.del_order_by_id', // DEL /orders/:id
 
   CREATE_SUPPLY: 'command.inventory.create_supply', // POST /supplies
   GET_SUPPLY: 'command.inventory.get_supply', // GET /supplies

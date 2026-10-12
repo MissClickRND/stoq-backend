@@ -11,6 +11,7 @@ import {
   mapProductToDto,
   ProductResponseDto,
 } from "./dto/response/product-response.dto";
+import { mapUnitToDto } from "./dto/response/unit-response.dto";
 
 @Injectable()
 export class ProductService {
@@ -49,13 +50,14 @@ export class ProductService {
 
   async create(data: CreateProductDto) {
     try {
-      return await this.prisma.product.create({
+      const product = await this.prisma.product.create({
         data: {
           name: data.name,
           unitId: data.unitId,
         },
         include: { unit: true },
       });
+      return mapProductToDto(product);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === "P2002") {
@@ -81,7 +83,7 @@ export class ProductService {
       products.push(product);
     }
 
-    return products;
+    return products.map(mapProductToDto);
   }
 
   async remove(id: number) {
@@ -95,12 +97,13 @@ export class ProductService {
 
   async createUnit(dto: CreateUnitDto) {
     try {
-      return await this.prisma.unit.create({
+      const unit = await this.prisma.unit.create({
         data: {
           name: dto.name,
           shortName: dto.shortName,
         },
       });
+      return mapUnitToDto(unit);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === "P2002") {

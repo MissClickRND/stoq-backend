@@ -12,10 +12,25 @@ export class InventoryService {
     private readonly commandBusService: CommandBusService,
   ) {}
 
-  async findAll(): Promise<any[]> {
+  async findAll(search?: string): Promise<any[]> {
+    const productResponse = (await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.GET_PRODUCT,
+      {
+        search: search?.trim(),
+      },
+    )) as any;
+
+    const products: any[] = productResponse?.data ?? [];
+
+    if (products.length === 0) return [];
+
+    const productIds = products.map((p) => p.id);
+
     const batches = await this.prisma.batch.findMany({
       where: {
         status: "ACTIVE",
+        productId: { in: productIds },
         balance: { availableQuantity: { gt: 0 } },
       },
       include: { balance: true },
@@ -24,26 +39,32 @@ export class InventoryService {
     if (batches.length === 0) return [];
 
     const mappedBatches = mapBatchesToDto(batches);
-    const productIds = Array.from(new Set(batches.map((b) => b.productId)));
 
-    const productResponse = (await this.commandBusService.sendCommand(
-      EXCHANGES.COMMANDS,
-      ROUTING_KEYS.GET_PRODUCT,
-      { ids: productIds },
-    )) as any;
+    const batchesByProductId = new Map<number, any[]>();
 
-    const productsByProductId = new Map<number, any>(
-      (productResponse?.data ?? []).map((p: any) => [p.id, p]),
-    );
+    batches.forEach((batch, index) => {
+      const batchDto = mappedBatches[index];
 
-    return mappedBatches.map((batchDto: any, index: number) => {
-      const productId = batchDto.productId ?? batches[index]?.productId;
-      return {
+      if (!batch.productId) return;
+      if (!batchDto) return;
+
+      const batchWithProductId = {
         ...batchDto,
-        product: productId
-          ? (productsByProductId.get(productId) ?? null)
-          : null,
+        productId: batch.productId,
       };
+
+      const existing = batchesByProductId.get(batch.productId) ?? [];
+      existing.push(batchWithProductId);
+      batchesByProductId.set(batch.productId, existing);
+    });
+
+    return products.flatMap((product) => {
+      const productBatches = batchesByProductId.get(product.id) ?? [];
+
+      return productBatches.map((batchDto) => ({
+        ...batchDto,
+        product,
+      }));
     });
   }
 
@@ -77,23 +98,29 @@ export class InventoryService {
   }
 
   async updateQuantity(dto: UpdateQuantityDto) {
-    const balance = await this.prisma.batchBalance.findUnique({
-      where: {
-        batchId: dto.batchId,
-      },
+    const batchIds = dto.items.map((item) => item.batchId);
+
+    const existingBalances = await this.prisma.batchBalance.findMany({
+      where: { batchId: { in: batchIds } },
+      select: { batchId: true },
     });
 
-    if (!balance) {
-      throw new NotFoundException("Партия не найдена");
+    const existingIds = new Set(existingBalances.map((b) => b.batchId));
+    const missingIds = batchIds.filter((id) => !existingIds.has(id));
+
+    if (missingIds.length > 0) {
+      throw new NotFoundException(
+        `Партии не найдены: ${missingIds.join(", ")}`,
+      );
     }
 
-    return this.prisma.batchBalance.update({
-      where: {
-        batchId: dto.batchId,
-      },
-      data: {
-        availableQuantity: dto.quantity,
-      },
-    });
+    return this.prisma.$transaction(
+      dto.items.map((item) =>
+        this.prisma.batchBalance.update({
+          where: { batchId: item.batchId },
+          data: { availableQuantity: item.quantity },
+        }),
+      ),
+    );
   }
 }

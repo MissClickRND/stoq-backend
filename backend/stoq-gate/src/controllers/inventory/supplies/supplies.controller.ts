@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   HttpException,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -17,6 +18,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { CreateSupplyDto } from './dto/create-supply.dto';
@@ -43,7 +45,7 @@ export class SupplyController {
     description: 'Поставка с таким номером уже существует',
   })
   async create(@Body() dto: CreateSupplyDto) {
-    const payload = { search: dto };
+    const payload = { dto: dto };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_SUPPLY,
@@ -54,9 +56,15 @@ export class SupplyController {
 
   @Get()
   @ApiOperation({ summary: 'Получить список всех поставок' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Подстрока для поиска по названию товара',
+    example: 'мол',
+  })
   @ApiOkResponse({ description: 'Список поставок' })
-  async findAll() {
-    const payload = {};
+  async findAll(@Query('search') search?: string) {
+    const payload = { search: search };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_SUPPLY,
