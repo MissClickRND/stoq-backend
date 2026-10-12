@@ -1,10 +1,10 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
 import { ProductService } from "./product.service";
-import { CreateProductDto } from "./dto/create-product.dto";
-import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitmq-topology";
+import { CreateProductDto } from "./dto/request/create-product.dto";
+import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "src/common/utils/rpc-handler";
-import { CreateUnitDto } from "./dto/create-unit.dto";
+import { CreateUnitDto } from "./dto/request/create-unit.dto";
 
 @Injectable()
 export class ProductRPCController {

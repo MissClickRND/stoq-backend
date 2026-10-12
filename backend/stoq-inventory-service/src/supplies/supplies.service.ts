@@ -23,8 +23,7 @@ export class SupplyService {
         });
 
         for (const item of dto.items) {
-          const expiresAt = new Date(supply.receivedAt);
-          expiresAt.setDate(expiresAt.getDate() + item.shelfLifeDays);
+          const expiresAt = new Date(item.expiresAt);
 
           const batch = await tx.batch.create({
             data: {
@@ -41,7 +40,6 @@ export class SupplyService {
               supplyId: supply.id,
               productId: item.productId,
               quantity: item.quantity,
-              shelfLifeDays: item.shelfLifeDays,
               expiresAt,
             },
           });

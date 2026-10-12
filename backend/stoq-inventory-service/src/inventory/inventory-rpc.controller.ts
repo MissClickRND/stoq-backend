@@ -1,9 +1,9 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
-import { EXCHANGES, ROUTING_KEYS, QUEUES } from "../common/rabbitmq-topology";
+import { EXCHANGES, ROUTING_KEYS, QUEUES } from "../common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "../common/utils/rpc-handler";
 import { InventoryService } from "./inventory.service";
-import { UpdateQuantityDto } from "./dto/update-quantity.dto";
+import { UpdateQuantityDto } from "./dto/request/update-quantity.dto";
 
 @Injectable()
 export class InventoryRPCController {

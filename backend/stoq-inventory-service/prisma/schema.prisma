@@ -24,7 +24,6 @@ model SupplyItem {
   supplyId      Int      @map("supply_id")
   productId     Int      @map("product_id")
   quantity      Decimal  @db.Decimal
-  shelfLifeDays Int      @map("shelf_life_days")
   expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   supply        Supply   @relation(fields: [supplyId], references: [id])

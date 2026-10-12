@@ -20,8 +20,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CreateSupplyDto } from './dto/create-supply.dto';
-import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitmq-topology';
-import { CommandBusService } from 'src/infrastructure/rabbit/command-bus.service';
+import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
+import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 
 @ApiTags('Поставки')
 @Controller('supplies')

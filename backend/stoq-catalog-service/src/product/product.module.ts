@@ -4,7 +4,7 @@ import { ProductService } from './product.service';
 import { ProductRPCController } from './product-rpc.controller';
 
 @Module({
-  controllers: [ProductController],
+  // controllers: [ProductController],
   providers: [ProductService, ProductRPCController]
 })
 export class ProductModule {}
