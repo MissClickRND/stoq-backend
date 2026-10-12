@@ -1,11 +1,12 @@
 import {
     Controller,
     Get,
-    Put,
     Delete,
     Param,
     Body,
     ParseIntPipe,
+    Query,
+    Post,
 } from "@nestjs/common";
 import {
     ApiBadRequestResponse,
@@ -16,6 +17,7 @@ import {
     ApiOkResponse,
     ApiOperation,
     ApiParam,
+    ApiQuery,
     ApiTags,
 } from "@nestjs/swagger";
 import { DishesService } from "./dishes.service";
@@ -26,21 +28,31 @@ import { CreateDishDto } from "./dto/create-dish.dto";
 export class DishesController {
     constructor(private readonly dishesService: DishesService) {}
 
-    @Put()
+    @Post()
     @ApiOperation({ summary: "Создать блюдо" })
     @ApiBody({ type: CreateDishDto })
     @ApiCreatedResponse({ description: "Блюдо успешно создано" })
-    @ApiBadRequestResponse({ description: "Переданы некорректные данные блюда" })
-    @ApiConflictResponse({ description: "Блюдо с таким названием уже существует" })
+    @ApiBadRequestResponse({
+        description: "Переданы некорректные данные блюда",
+    })
+    @ApiConflictResponse({
+        description: "Блюдо с таким названием уже существует",
+    })
     create(@Body() dto: CreateDishDto) {
         return this.dishesService.create(dto);
     }
 
     @Get()
     @ApiOperation({ summary: "Получить список блюд" })
+    @ApiQuery({
+        name: "search",
+        required: false,
+        description: "Подстрока для поиска по названию блюда",
+        example: "беф",
+    })
     @ApiOkResponse({ description: "Список активных блюд" })
-    findAll() {
-        return this.dishesService.findAll();
+    findAll(@Query('search') search?: string) {
+        return this.dishesService.findAll(search);
     }
 
     @Get(":id")

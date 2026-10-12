@@ -32,10 +32,16 @@ export class DishesService {
         }
     }
 
-    async findAll() {
+    async findAll(search?: string) {
         return this.prisma.dish.findMany({
             where: {
                 isDeleted: false,
+                name: search
+                    ? {
+                            contains: search,
+                            mode: "insensitive",
+                        }
+                    : undefined,
             },
             include: {
                 recipeItems: {
