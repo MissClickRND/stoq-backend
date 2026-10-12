@@ -37,6 +37,17 @@ export class DishesService {
             where: {
                 isDeleted: false,
             },
+            include: {
+                recipeItems: {
+                    include: {
+                        product: {
+                            include: {
+                                unit: true,
+                            },
+                        },
+                    },
+                },
+            },
             orderBy: {
                 name: "asc",
             },
