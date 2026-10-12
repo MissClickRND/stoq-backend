@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  
 }
 
 enum OrderStatus {
@@ -16,7 +17,7 @@ enum OrderStatus {
 }
 
 model Order {
-  id          Int      @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   status      OrderStatus @default(created)
   created_at  DateTime    @default(now())
   updated_at  DateTime    @updatedAt
@@ -27,8 +28,8 @@ model Order {
 
 model OrderItem {
   id        Int  @id @default(autoincrement())
-  orderId  Int
-  dishId   Int  
+  orderId   Int
+  dishId    Int  
   quantity  Int     
 
   order     Order   @relation(fields: [orderId], references: [id])

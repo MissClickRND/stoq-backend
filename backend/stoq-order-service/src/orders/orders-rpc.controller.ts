@@ -13,8 +13,8 @@ export class OrdersRPCController {
     routingKey: ROUTING_KEYS.CREATE_DISHES,
     queue: QUEUES.CATALOG_COMMANDS,
   })
-  create(payload: { dto: CreateDishDto }) {
-    return executeRpc(() => this.dishesService.create(payload.dto));
+  create() {
+    return executeRpc(() => this.ordersService.create());
   }
 
   @RabbitRPC({
@@ -23,7 +23,7 @@ export class OrdersRPCController {
     queue: QUEUES.CATALOG_COMMANDS,
   })
   findAll() {
-    return executeRpc(() => this.dishesService.findAll());
+    return executeRpc(() => this.ordersService.findAll());
   }
 
   @RabbitRPC({
@@ -32,7 +32,7 @@ export class OrdersRPCController {
     queue: QUEUES.CATALOG_COMMANDS,
   })
   findOne(payload: { id: number }) {
-    return executeRpc(() => this.dishesService.findOne(payload.id));
+    return executeRpc(() => this.ordersService.findOne(payload.id));
   }
 
   @RabbitRPC({
@@ -41,6 +41,6 @@ export class OrdersRPCController {
     queue: QUEUES.CATALOG_COMMANDS,
   })
   remove(payload: { id: number }) {
-    return executeRpc(() => this.dishesService.remove(payload.id));
+    return executeRpc(() => this.ordersService.remove(payload.id));
   }
 }
