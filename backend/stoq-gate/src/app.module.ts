@@ -6,6 +6,8 @@ import { EXCHANGES } from './common/rabbitmq-topology';
 import { ProductController } from './controllers/catalog/product/product.controller';
 import { RecipesController } from './controllers/catalog/recipes/recipes.controller';
 import { DishesController } from './controllers/catalog/dishes/dishes.controller';
+import { SupplyController } from './controllers/inventory/supplies/supplies.controller';
+import { InventoryController } from './controllers/inventory/inventory/inventory.controller';
 
 @Module({
   imports: [
@@ -34,6 +36,12 @@ import { DishesController } from './controllers/catalog/dishes/dishes.controller
     }),
   ],
   providers: [CommandBusService],
-  controllers: [ProductController, RecipesController, DishesController]
+  controllers: [
+    ProductController,
+    RecipesController,
+    DishesController,
+    SupplyController,
+    InventoryController,
+  ],
 })
 export class AppModule {}

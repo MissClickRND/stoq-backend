@@ -22,7 +22,6 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
-  getSchemaPath,
 } from '@nestjs/swagger';
 
 import { CreateProductDto } from './dto/create-product.dto';
@@ -62,46 +61,13 @@ export class ProductController {
     return this.handleRpcResponse(response);
   }
 
-  @ApiOperation({ summary: 'Получить продукт по ID' })
-  @ApiParam({ name: 'id', description: 'ID продукта', example: 1 })
-  @ApiOkResponse({ description: 'Найденный продукт' })
-  @ApiBadRequestResponse({ description: 'Некорректный ID продукта' })
-  @ApiNotFoundResponse({ description: 'Продукт не найден' })
-  @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const payload = { id: id };
-    const response = await this.commandBusService.sendCommand(
-      EXCHANGES.COMMANDS,
-      ROUTING_KEYS.GET_PRODUCT_BY_ID,
-      payload,
-    );
-    return this.handleRpcResponse(response);
-  }
-
-  @ApiOperation({ summary: 'Создать товар' })
-  @ApiBody({ type: CreateProductDto })
-  @ApiCreatedResponse({ description: 'Товар успешно создан' })
-  @ApiNotFoundResponse({
-    description: 'Указанная единица измерения не найдена',
-  })
-  @Post()
-  async create(@Body() dto: CreateProductDto) {
-    const payload = dto;
-    const response = await this.commandBusService.sendCommand(
-      EXCHANGES.COMMANDS,
-      ROUTING_KEYS.CREATE_PRODUCT,
-      payload,
-    );
-    return this.handleRpcResponse(response);
-  }
-
+  @Post('few')
   @ApiOperation({ summary: 'Создать несколько товаров' })
   @ApiBody({ type: [CreateProductDto] })
   @ApiCreatedResponse({ description: 'Товары успешно созданы' })
   @ApiNotFoundResponse({
     description: 'Указанная единица измерения не найдена',
   })
-  @Post('few')
   async createMany(
     @Body(
       new ParseArrayPipe({
@@ -116,21 +82,6 @@ export class ProductController {
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_MANY_PRODUCT,
-      payload,
-    );
-    return this.handleRpcResponse(response);
-  }
-
-  @ApiOperation({ summary: 'Удалить товар' })
-  @ApiParam({ name: 'id', description: 'Идентификатор товара', example: 1 })
-  @ApiOkResponse({ description: 'Товар помечен как удалённый' })
-  @ApiNotFoundResponse({ description: 'Товар не найден' })
-  @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    const payload = { id: id };
-    const response = await this.commandBusService.sendCommand(
-      EXCHANGES.COMMANDS,
-      ROUTING_KEYS.DEL_PRODUCT_BY_ID,
       payload,
     );
     return this.handleRpcResponse(response);
@@ -163,7 +114,38 @@ export class ProductController {
     const payload = {};
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
-      ROUTING_KEYS.CREATE_UNIT,
+      ROUTING_KEYS.GET_UNIT,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Получить продукт по ID' })
+  @ApiParam({ name: 'id', description: 'ID продукта', example: 1 })
+  @ApiOkResponse({ description: 'Найденный продукт' })
+  @ApiBadRequestResponse({ description: 'Некорректный ID продукта' })
+  @ApiNotFoundResponse({ description: 'Продукт не найден' })
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const payload = { id: id };
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.GET_PRODUCT_BY_ID,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Удалить товар' })
+  @ApiParam({ name: 'id', description: 'Идентификатор товара', example: 1 })
+  @ApiOkResponse({ description: 'Товар помечен как удалённый' })
+  @ApiNotFoundResponse({ description: 'Товар не найден' })
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    const payload = { id: id };
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.DEL_PRODUCT_BY_ID,
       payload,
     );
     return this.handleRpcResponse(response);
@@ -179,7 +161,24 @@ export class ProductController {
     const payload = { id: id };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
-      ROUTING_KEYS.CREATE_UNIT,
+      ROUTING_KEYS.GET_UNIT_BY_ID,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Создать товар' })
+  @ApiBody({ type: CreateProductDto })
+  @ApiCreatedResponse({ description: 'Товар успешно создан' })
+  @ApiNotFoundResponse({
+    description: 'Указанная единица измерения не найдена',
+  })
+  async create(@Body() dto: CreateProductDto) {
+    const payload = dto;
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.CREATE_PRODUCT,
       payload,
     );
     return this.handleRpcResponse(response);
