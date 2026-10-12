@@ -101,7 +101,7 @@ export class ProductController {
   @ApiNotFoundResponse({
     description: 'Указанная единица измерения не найдена',
   })
-  @Post("few")
+  @Post('few')
   async createMany(
     @Body(
       new ParseArrayPipe({
@@ -147,8 +147,36 @@ export class ProductController {
     description: 'Такая единица измерения уже существует',
   })
   async createUnit(@Body() dto: CreateUnitDto) {
-    console.log(dto)
     const payload = { dto: dto };
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.CREATE_UNIT,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Get('units')
+  @ApiOperation({ summary: 'Получить список единиц измерения' })
+  @ApiOkResponse({ description: 'Список единиц измерения' })
+  async findAllUnits() {
+    const payload = {};
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.CREATE_UNIT,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Get('units/:id')
+  @ApiOperation({ summary: 'Получить единицу измерения по ID' })
+  @ApiParam({ name: 'id', description: 'ID единицы измерения', example: 1 })
+  @ApiOkResponse({ description: 'Найденная единица измерения' })
+  @ApiBadRequestResponse({ description: 'Некорректный ID единицы измерения' })
+  @ApiNotFoundResponse({ description: 'Единица измерения не найдена' })
+  async findOneUnit(@Param('id', ParseIntPipe) id: number) {
+    const payload = { id: id };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_UNIT,
