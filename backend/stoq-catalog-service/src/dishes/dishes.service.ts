@@ -38,9 +38,9 @@ export class DishesService {
                 isDeleted: false,
                 name: search
                     ? {
-                            contains: search,
-                            mode: "insensitive",
-                        }
+                          contains: search,
+                          mode: "insensitive",
+                      }
                     : undefined,
             },
             include: {
@@ -65,6 +65,17 @@ export class DishesService {
             where: {
                 id,
                 isDeleted: false,
+            },
+            include: {
+                recipeItems: {
+                    include: {
+                        product: {
+                            include: {
+                                unit: true,
+                            },
+                        },
+                    },
+                },
             },
         });
 
