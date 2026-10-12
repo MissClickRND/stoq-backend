@@ -18,9 +18,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
-import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 import { UpdateQuantityDto } from './dto/update-quantity.dto';
+import { CommandBusService } from '../../../common/rabbitMQ/command-bus.service';
+import { EXCHANGES, ROUTING_KEYS } from '../../../common/rabbitMQ/rabbitmq-topology';
 
 @ApiTags('Остатки')
 @Controller('inventory')
