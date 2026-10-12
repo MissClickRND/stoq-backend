@@ -63,4 +63,22 @@ export class ProductRPCController {
   createUnit(payload: { dto: CreateUnitDto }) {
     return executeRpc(() => this.productService.createUnit(payload.dto));
   }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_UNIT,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  findAllUnits() {
+    return executeRpc(() => this.productService.findAllUnits());
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_UNIT_BY_ID,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  findOneUnit(payload: { id: number }) {
+    return executeRpc(() => this.productService.findOneUnit(payload.id));
+  }
 }
