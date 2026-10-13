@@ -32,8 +32,9 @@ model Dish {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   description String?
+  category String?
   imageURL String?
-  salePrice Int?
+  salePrice Decimal? @db.Decimal(18, 2)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   isDeleted Boolean   @default(false)
@@ -45,7 +46,7 @@ model RecipeItem {
   id        Int     @id @default(autoincrement())
   dishId    Int
   productId Int
-  quantity  Int
+  quantity  Decimal @db.Decimal(18, 3)
 
   dish      Dish    @relation(fields: [dishId], references: [id])
   product   Product @relation(fields: [productId], references: [id])

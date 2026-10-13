@@ -1,3 +1,4 @@
+import { InventoryResponseDto } from '../../../common/dto/business-response.dto';
 import {
   Controller,
   Get,
@@ -42,7 +43,7 @@ export class InventoryController {
     description: 'Подстрока для поиска по названию товара',
     example: 'мол',
   })
-  @ApiOkResponse({ description: 'Список продуктов на складе' })
+  @ApiOkResponse({ type: InventoryResponseDto, isArray: true, description: 'Список продуктов на складе' })
   async findAll(@Query('search') search?: string) {
     const payload = { search: search };
     const response = await this.commandBusService.sendCommand(
@@ -60,7 +61,7 @@ export class InventoryController {
     description: 'ID продукта',
     example: '5',
   })
-  @ApiOkResponse({ description: 'Информация о продукте' })
+  @ApiOkResponse({ type: InventoryResponseDto, isArray: true, description: 'Партии продукта' })
   @ApiNotFoundResponse({ description: 'Продукт не найден на складе' })
   async findOne(@Param('productId', ParseIntPipe) productId: number) {
     const payload = { productId: productId };
@@ -75,7 +76,7 @@ export class InventoryController {
   @Put()
   @ApiOperation({ summary: 'Обновить количество продукта на складе' })
   @ApiBody({ type: UpdateQuantityDto })
-  @ApiOkResponse({ description: 'Количество успешно обновлено' })
+  @ApiOkResponse({ type: InventoryResponseDto, description: 'Количество успешно обновлено' })
   @ApiNotFoundResponse({ description: 'Партия не найдена' })
   async updateQuantity(@Body() dto: UpdateQuantityDto) {
     const payload = { dto: dto };

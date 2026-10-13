@@ -63,4 +63,10 @@ export class OrdersRPCController {
   remove(payload: { id: number }) {
     return executeRpc(() => this.ordersService.remove(payload.id));
   }
+
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.CHANGE_ORDER_STATUS,
+    queue: QUEUES.ORDERS_COMMANDS })
+  changeStatus(payload: { id: number; status: 'completed' }) {
+    return executeRpc(() => this.ordersService.changeStatus(payload));
+  }
 }

@@ -7,7 +7,7 @@ import {
   IsOptional,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Type, Transform } from "class-transformer";
 import { CreateSupplyItemDto } from "./create-supply-item.dto";
 
 export class CreateSupplyDto {
@@ -18,6 +18,12 @@ export class CreateSupplyDto {
   @IsString()
   @IsNotEmpty()
   supplyNumber!: string;
+
+  @ApiProperty({ description: "Название поставщика", example: "ООО Молочный двор" })
+  @Transform(({ value }) => typeof value === "string" ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  supplier!: string;
 
   @ApiProperty({
     description: "Позиции поставки",

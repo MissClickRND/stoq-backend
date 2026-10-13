@@ -1,3 +1,4 @@
+import { DishResponseDto } from '../common/dto/business-response.dto';
 import {
     Controller,
     Get,
@@ -31,7 +32,7 @@ export class DishesController {
     @Post()
     @ApiOperation({ summary: "Создать блюдо" })
     @ApiBody({ type: CreateDishDto })
-    @ApiCreatedResponse({ description: "Блюдо успешно создано" })
+    @ApiCreatedResponse({ type: DishResponseDto, description: "Блюдо успешно создано" })
     @ApiBadRequestResponse({
         description: "Переданы некорректные данные блюда",
     })
@@ -50,7 +51,7 @@ export class DishesController {
         description: "Подстрока для поиска по названию блюда",
         example: "беф",
     })
-    @ApiOkResponse({ description: "Список активных блюд" })
+    @ApiOkResponse({ type: DishResponseDto, isArray: true, description: "Список активных блюд" })
     findAll(@Query('search') search?: string) {
         return this.dishesService.findAll(search);
     }
@@ -58,7 +59,7 @@ export class DishesController {
     @Get(":id")
     @ApiOperation({ summary: "Получить блюдо по ID" })
     @ApiParam({ name: "id", description: "ID блюда", example: 1 })
-    @ApiOkResponse({ description: "Найденное блюдо" })
+    @ApiOkResponse({ type: DishResponseDto, description: "Найденное блюдо" })
     @ApiBadRequestResponse({ description: "Некорректный ID блюда" })
     @ApiNotFoundResponse({ description: "Блюдо не найдено" })
     findOne(@Param("id", ParseIntPipe) id: number) {
@@ -68,7 +69,7 @@ export class DishesController {
     @Delete(":id")
     @ApiOperation({ summary: "Удалить блюдо" })
     @ApiParam({ name: "id", description: "ID блюда", example: 1 })
-    @ApiOkResponse({ description: "Блюдо помечено как удалённое" })
+    @ApiOkResponse({ type: DishResponseDto, description: "Блюдо помечено как удалённое" })
     @ApiBadRequestResponse({ description: "Некорректный ID блюда" })
     @ApiNotFoundResponse({ description: "Блюдо не найдено" })
     remove(@Param("id", ParseIntPipe) id: number) {

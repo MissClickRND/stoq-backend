@@ -1,3 +1,4 @@
+import { InventoryResponseDto } from '../common/dto/business-response.dto';
 import {
     Body,
     Controller,
@@ -25,7 +26,7 @@ export class InventoryController {
 
     @Get()
     @ApiOperation({ summary: "Получить все продукты на складе" })
-    @ApiOkResponse({ description: "Список продуктов на складе" })
+    @ApiOkResponse({ type: InventoryResponseDto, isArray: true, description: "Список продуктов на складе" })
     findAll() {
         return this.inventoryService.findAll();
     }
@@ -37,7 +38,7 @@ export class InventoryController {
         description: "ID продукта",
         example: "5",
     })
-    @ApiOkResponse({ description: "Информация о продукте" })
+    @ApiOkResponse({ type: InventoryResponseDto, isArray: true, description: "Партии продукта" })
     @ApiNotFoundResponse({ description: "Продукт не найден на складе" })
     findOne(@Param("productId", ParseIntPipe) productId: number) {
         return this.inventoryService.findOne(productId);
@@ -46,7 +47,7 @@ export class InventoryController {
     @Put()
     @ApiOperation({ summary: "Обновить количество продукта на складе" })
     @ApiBody({ type: UpdateQuantityDto })
-    @ApiOkResponse({ description: "Количество успешно обновлено" })
+    @ApiOkResponse({ type: InventoryResponseDto, description: "Количество успешно обновлено" })
     @ApiNotFoundResponse({ description: "Партия не найдена" })
     updateQuantity(@Body() dto: UpdateQuantityDto) {
         return this.inventoryService.updateQuantity(dto);

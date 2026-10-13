@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -44,13 +45,20 @@ export class OrdersService {
   }
 
   async create(dto: CreateOrderDto = {}) {
+    const date = dto.date === undefined ? new Date() : new Date(dto.date);
+    const type = dto.type ?? 'dine-in';
+    const guests = dto.guests ?? 1;
+    if (!Number.isFinite(date.getTime()) || (dto.date !== undefined && !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(dto.date)) ||
+      !['dine-in', 'takeaway'].includes(type) || !Number.isSafeInteger(guests) || guests < 1 ||
+      (dto.table != null && (!Number.isSafeInteger(dto.table) || dto.table < 1)))
+      throw new BadRequestException('Некорректная дата, тип заказа, стол или количество человек');
     const items = dto.items ?? [];
 
     if (items.length > 0) {
       this.assertUniqueDishes(items);
     }
 
-    const data: Prisma.OrderCreateInput = {};
+    const data: Prisma.OrderCreateInput = { date, type, guests, table: type === 'takeaway' ? null : dto.table ?? null };
 
     if (items.length > 0) {
       data.items = {
@@ -61,12 +69,12 @@ export class OrdersService {
       };
     }
 
-    return this.prisma.order.create({
+    return this.toResponse(await this.prisma.order.create({
       data,
       include: {
         items: true,
       },
-    });
+    }));
   }
 
   async addItems(payload: { orderId: number; dto: AddOrderItemsDto }) {
@@ -107,14 +115,10 @@ export class OrdersService {
   }
 
   async findAll() {
-    return this.prisma.order.findMany({
+    const orders = await this.prisma.order.findMany({
       where: {
         status: {
-          notIn: [
-            OrderStatus.rejected,
-            OrderStatus.cancelled,
-            OrderStatus.completed,
-          ],
+          notIn: [OrderStatus.rejected, OrderStatus.cancelled],
         },
       },
       include: {
@@ -124,6 +128,7 @@ export class OrdersService {
         created_at: 'desc',
       },
     });
+    return orders.map((order) => this.toResponse(order));
   }
 
   async findOne(id: number) {
@@ -138,18 +143,25 @@ export class OrdersService {
       throw new NotFoundException(`Заказ с ID ${id} не найден`);
     }
 
-    return order;
+    return this.toResponse(order);
+  }
+
+  private toResponse(order: any) {
+    return { ...order, date: new Date(order.date).toISOString(),
+      created_at: order.created_at ? new Date(order.created_at).toISOString() : undefined,
+      updated_at: order.updated_at ? new Date(order.updated_at).toISOString() : undefined };
   }
 
   async changeStatus(payload: { id: number; status: OrderStatus }) {
-    await this.findOne(payload.id);
+    await this.ensureOrderExists(payload.id);
 
-    return this.prisma.order.update({
+    return this.toResponse(await this.prisma.order.update({
       where: { id: payload.id },
       data: {
         status: payload.status,
       },
-    });
+      include: { items: true },
+    }));
   }
 
   async remove(id: number) {

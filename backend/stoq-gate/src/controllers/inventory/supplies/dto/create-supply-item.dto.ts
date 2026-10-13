@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDate, IsInt, IsNumber, Min } from "class-validator";
+import { IsDate, IsInt, IsNumber, Min, IsPositive, Max } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateSupplyItemDto {
@@ -18,8 +18,15 @@ export class CreateSupplyItemDto {
   })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
-  @Min(0)
+  @IsPositive()
   quantity!: number;
+
+  @ApiProperty({ description: "Полная стоимость позиции в рублях", example: 300, minimum: 0 })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1000000000000)
+  totalPrice!: number;
 
   @ApiProperty({
     description: "Дата окончания срока годности",

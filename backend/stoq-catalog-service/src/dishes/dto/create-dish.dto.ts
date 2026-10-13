@@ -22,6 +22,14 @@ export class CreateDishDto {
     })
     name!: string;
 
+    @ApiProperty({ description: "Категория блюда", example: "Салаты", required: false, maxLength: 100 })
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(100)
+    @Transform(({ value }) => typeof value === "string" ? value.trim() : value)
+    category?: string;
+
     @ApiProperty({
         description: "Описание блюда",
         example: "Говядина в сметанном соусе с нежным пюре.",

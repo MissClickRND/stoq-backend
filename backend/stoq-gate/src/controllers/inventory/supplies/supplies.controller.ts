@@ -1,3 +1,4 @@
+import { SupplyResponseDto } from '../../../common/dto/business-response.dto';
 import {
   Controller,
   Get,
@@ -40,7 +41,7 @@ export class SupplyController {
   @Post()
   @ApiOperation({ summary: 'Принять новую поставку' })
   @ApiBody({ type: CreateSupplyDto })
-  @ApiCreatedResponse({ description: 'Поставка успешно принята' })
+  @ApiCreatedResponse({ type: SupplyResponseDto, description: 'Поставка успешно принята' })
   @ApiConflictResponse({
     description: 'Поставка с таким номером уже существует',
   })
@@ -62,7 +63,7 @@ export class SupplyController {
     description: 'Подстрока для поиска по названию товара',
     example: 'мол',
   })
-  @ApiOkResponse({ description: 'Список поставок' })
+  @ApiOkResponse({ type: SupplyResponseDto, isArray: true, description: 'Список поставок' })
   async findAll(@Query('search') search?: string) {
     const payload = { search: search };
     const response = await this.commandBusService.sendCommand(
@@ -76,7 +77,7 @@ export class SupplyController {
   @Get(':id')
   @ApiOperation({ summary: 'Получить детали поставки' })
   @ApiParam({ name: 'id', description: 'ID поставки', example: 1 })
-  @ApiOkResponse({ description: 'Детали поставки' })
+  @ApiOkResponse({ type: SupplyResponseDto, description: 'Детали поставки' })
   @ApiBadRequestResponse({ description: 'Некорректный ID поставки' })
   @ApiNotFoundResponse({ description: 'Поставка не найдена' })
   async findOne(@Param('id', ParseIntPipe) id: number) {

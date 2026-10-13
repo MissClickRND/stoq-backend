@@ -68,6 +68,20 @@ export class InventoryService {
     });
   }
 
+  // Internal stock query reads only inventory tables; it never calls catalog back.
+  async getStock(productIds: number[]) {
+    if (!Array.isArray(productIds) || productIds.some((id) => !Number.isSafeInteger(id) || id <= 0))
+      throw new NotFoundException('Некорректные идентификаторы продуктов');
+    const batches = await this.prisma.batch.findMany({
+      where: { productId: { in: [...new Set(productIds)] }, status: 'ACTIVE',
+        expiresAt: { gt: new Date() }, balance: { availableQuantity: { gt: 0 } } },
+      include: { balance: true },
+    });
+    return batches.map((batch) => ({ productId: batch.productId,
+      availableQuantity: Number(batch.balance?.availableQuantity ?? 0),
+      price: batch.price == null ? null : Number(batch.price), expiresAt: batch.expiresAt.toISOString() }));
+  }
+
   async findOne(productId: number): Promise<any[]> {
     const batches = await this.prisma.batch.findMany({
       where: { productId, status: "ACTIVE" },

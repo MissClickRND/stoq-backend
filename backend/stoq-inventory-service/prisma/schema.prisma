@@ -10,6 +10,8 @@ datasource db {
 model Supply {
   id           Int          @id @default(autoincrement())
   supplyNumber String       @unique @map("supply_number")
+  supplier     String?
+  totalPrice   Decimal?     @map("total_price") @db.Decimal(18, 2)
   status       SupplyStatus @default(RECEIVED)
   receivedAt   DateTime     @default(now()) @map("received_at") @db.Timestamptz(6)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -24,6 +26,7 @@ model SupplyItem {
   supplyId      Int      @map("supply_id")
   productId     Int      @map("product_id")
   quantity      Decimal  @db.Decimal
+  totalPrice    Decimal? @map("total_price") @db.Decimal(18, 2)
   expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   supply        Supply   @relation(fields: [supplyId], references: [id])
@@ -38,6 +41,7 @@ model Batch {
   supplyId        Int           @map("supply_id")
   productId       Int           @map("product_id")
   initialQuantity Decimal       @map("initial_quantity") @db.Decimal
+  price           Decimal?      @db.Decimal(18, 6)
   expiresAt       DateTime      @map("expires_at") @db.Timestamptz(6)
   status          BatchStatus   @default(ACTIVE)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

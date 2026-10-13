@@ -4,6 +4,7 @@ export const EXCHANGES = {
 } as const;
 
 export const QUEUES = {
+  INVENTORY_STOCK: 'inventory.stock',
   AI_COMMANDS: 'ai.commands',
   AI_HEALTH: 'ai.health',
   ORDERS_COMMANDS: 'orders.commands',
@@ -13,6 +14,8 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  CHANGE_ORDER_STATUS: 'command.order.change_status',
+  GET_INVENTORY_STOCK: 'command.inventory.get_stock',
   RECOGNIZE_UPD: 'command.ai.recognize_upd',
   AI_HEALTH: 'command.ai.health',
 

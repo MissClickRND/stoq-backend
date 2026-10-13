@@ -1,3 +1,4 @@
+import { OrderResponseDto } from '../common/dto/business-response.dto';
 import {
   Controller,
   Get,
@@ -6,6 +7,7 @@ import {
   Body,
   ParseIntPipe,
   Post,
+  Patch,
 } from '@nestjs/common';
 
 import {
@@ -23,6 +25,7 @@ import {
 import { OrdersService } from './orders.service';
 import { AddOrderItemsDto } from './dto/add-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { ChangeStatusDto } from './dto/change-status.dto';
 
 @ApiTags('Заказы')
 @Controller('orders')
@@ -34,7 +37,7 @@ export class OrdersController {
     summary: 'Создать заказ (опционально сразу с блюдами)',
   })
   @ApiBody({ type: CreateOrderDto })
-  @ApiCreatedResponse({
+  @ApiCreatedResponse({ type: OrderResponseDto,
     description: 'Заказ успешно создан',
   })
   @ApiBadRequestResponse({
@@ -49,7 +52,7 @@ export class OrdersController {
 
   @Get()
   @ApiOperation({ summary: 'Получить список заказов' })
-  @ApiOkResponse({ description: 'Список заказов' })
+  @ApiOkResponse({ type: OrderResponseDto, isArray: true, description: 'Список заказов' })
   findAll() {
     return this.ordersService.findAll();
   }
@@ -57,7 +60,7 @@ export class OrdersController {
   @Get(':id')
   @ApiOperation({ summary: 'Получить заказ по ID' })
   @ApiParam({ name: 'id', description: 'ID заказа', example: 1 })
-  @ApiOkResponse({ description: 'Заказ найден' })
+  @ApiOkResponse({ type: OrderResponseDto, description: 'Заказ найден' })
   @ApiBadRequestResponse({ description: 'Некорректный ID заказа' })
   @ApiNotFoundResponse({ description: 'Заказ не найден' })
   findOne(@Param('id', ParseIntPipe) id: number) {
@@ -68,7 +71,7 @@ export class OrdersController {
   @ApiOperation({ summary: 'Добавить блюда в заказ' })
   @ApiParam({ name: 'id', description: 'ID заказа', example: 1 })
   @ApiBody({ type: AddOrderItemsDto })
-  @ApiCreatedResponse({ description: 'Блюда добавлены в заказ' })
+  @ApiCreatedResponse({ type: OrderResponseDto, description: 'Блюда добавлены в заказ' })
   @ApiBadRequestResponse({ description: 'Некорректные данные' })
   @ApiNotFoundResponse({ description: 'Заказ не найден' })
   @ApiConflictResponse({
@@ -84,10 +87,17 @@ export class OrdersController {
     });
   }
 
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Завершить заказ' })
+  @ApiOkResponse({ type: OrderResponseDto, description: 'Заказ завершён' })
+  changeStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: ChangeStatusDto) {
+    return this.ordersService.changeStatus({ id, status: dto.status });
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Удалить заказ' })
   @ApiParam({ name: 'id', description: 'ID заказа', example: 1 })
-  @ApiOkResponse({ description: 'Заказ успешно удалён' })
+  @ApiOkResponse({ type: OrderResponseDto, description: 'Заказ успешно удалён' })
   @ApiBadRequestResponse({ description: 'Некорректный ID заказа' })
   @ApiNotFoundResponse({ description: 'Заказ не найден' })
   @ApiConflictResponse({ description: 'Нельзя удалить закрытый заказ' })
