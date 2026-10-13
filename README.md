@@ -158,3 +158,19 @@ docker compose -f compose.ai.yaml -p stoq-ai-integration stop rabbitmq
 ## Поставки, склад, блюда и заказы
 
 Новые денежные поля поставок, цены партий, категории и складские показатели блюд, дата ISO и реквизиты заказов описаны в [docs/business-fields.md](docs/business-fields.md). Там же находятся порядок миграций, примеры POST и команды проверки.
+
+## Цены заказов
+
+Заказ возвращает `totalPrice`, а каждая позиция — `name`, `imageURL`, `price` и `totalPrice`. Цена и название сохраняются при добавлении из существующего RPC каталога `GET_DISHES_BY_ID`. Изменение текущего меню не меняет историческую стоимость заказа. Пустой заказ имеет сумму 0; для старых позиций без цены денежные поля и итог заказа остаются `null`. Неизвестная цена продажи не позволяет добавить новую позицию.
+
+Перед запуском обновлённого order-service примените добавочную миграцию `20261013120000_order_item_prices` к его БД, затем сгенерируйте клиент и соберите сервис из каталога `backend/stoq-order-service`:
+
+```powershell
+npx prisma migrate deploy
+npx prisma generate
+npm run build
+```
+
+Затем пересоберите и перезапустите gateway и order-service. Схема RabbitMQ и существующие routing keys не меняются. Миграция не восстанавливает старые цены из нынешнего меню.
+
+Проверки: `npm --prefix backend/stoq-order-service test -- --runInBand`, `npm run test:business-integration` (только отдельные локальные PostgreSQL 55434 и RabbitMQ 5678).

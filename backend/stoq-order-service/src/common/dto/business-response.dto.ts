@@ -67,9 +67,14 @@ export class OrderItemResponseDto {
   @ApiProperty() orderId!: number;
   @ApiProperty() dishId!: number;
   @ApiProperty() quantity!: number;
+  @ApiProperty({ type: String, nullable: true }) name!: string | null;
+  @ApiProperty({ type: String, nullable: true }) imageURL!: string | null;
+  @ApiProperty({ type: Number, nullable: true, description: 'Цена при добавлении позиции в заказ' }) price!: number | null;
+  @ApiProperty({ type: Number, nullable: true }) totalPrice!: number | null;
 }
 export class OrderResponseDto {
   @ApiProperty() id!: number;
+  @ApiProperty({ type: Number, nullable: true }) totalPrice!: number | null;
   @ApiProperty({ format: 'date-time' }) date!: string;
   @ApiProperty({ enum: ['dine-in', 'takeaway'] }) type!: string;
   @ApiProperty({ type: Number, nullable: true }) table!: number | null;

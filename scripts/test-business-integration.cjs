@@ -18,16 +18,19 @@ async function main() {
   try {
     await pool.query(fs.readFileSync(path.join(__dirname, 'fixtures/contracts/baseline.sql'), 'utf8'));
     await pool.query(`INSERT INTO supply.supplies (supply_number) VALUES ('LEGACY');
-      INSERT INTO "Order" (created_at, updated_at) VALUES ('2026-10-12 12:30:00', '2026-10-12 12:30:00');`);
+      INSERT INTO "Order" (created_at, updated_at) VALUES ('2026-10-12 12:30:00', '2026-10-12 12:30:00');
+      INSERT INTO "OrderItem" ("orderId", "dishId", quantity) VALUES (1, 1, 1);`);
     for (const [name, migration] of [
       ['stoq-inventory-service', '20261013100000_supply_prices'],
       ['stoq-catalog-service', '20261013100000_dish_category'],
       ['stoq-order-service', '20261013100000_order_metadata'],
+      ['stoq-order-service', '20261013120000_order_item_prices'],
     ]) await pool.query(fs.readFileSync(path.join(servicePath(name), 'prisma/migrations', migration, 'migration.sql'), 'utf8'));
     const legacy = (await pool.query('SELECT supplier, total_price FROM supply.supplies')).rows[0];
     assert.deepEqual(legacy, { supplier: null, total_price: null });
     const oldOrder = (await pool.query('SELECT date FROM "Order"')).rows[0];
     assert.equal(oldOrder.date.toISOString(), '2026-10-12T12:30:00.000Z');
+    assert.deepEqual((await pool.query('SELECT name, price FROM "OrderItem" WHERE id = 1')).rows[0], { name: null, price: null });
     console.log('Additive migrations preserve legacy data; unknown prices stay null.');
   } finally { await pool.end(); }
 
@@ -94,9 +97,21 @@ async function main() {
   assert.equal((await api('GET', '/dishes'))[0].availablePortions, 30);
   const metadata = { date: '2026-10-13T12:30:00.000Z', type: 'dine-in', table: 3, guests: 4 };
   const order = await api('POST', '/orders', { ...metadata, items: [{ dishId: dish.id, quantity: 2 }] });
+  assert.equal(order.totalPrice, 600);
+  assert.equal(order.items[0].price, 300);
+  assert.equal(order.items[0].totalPrice, 600);
+  assert.equal(order.items[0].name, 'Салат');
+  const catalog = clients.find(([name]) => name === 'stoq-catalog-service')[1];
+  await catalog.dish.update({ where: { id: dish.id }, data: { salePrice: 900, name: 'Салат с новой ценой' } });
   for (const [key, value] of Object.entries(metadata)) assert.equal(order[key], value);
   assert.deepEqual(await api('GET', '/orders/' + order.id), order);
   assert.ok((await api('GET', '/orders')).some(row => row.id === order.id && row.guests === 4));
+  const soup = await api('POST', '/dishes', { name: 'Суп', salePrice: 12.34,
+    recipeItems: [{ productId: product.id, quantity: 0.2 }] });
+  const expandedOrder = await api('POST', '/orders/' + order.id + '/items', { items: [{ dishId: soup.id, quantity: 3 }] });
+  assert.equal(expandedOrder.totalPrice, 637.02);
+  assert.equal(expandedOrder.items.find(item => item.dishId === dish.id).price, 300);
+  assert.equal(expandedOrder.items.find(item => item.dishId === soup.id).totalPrice, 37.02);
   const takeaway = await api('POST', '/orders', { date: metadata.date, type: 'takeaway', table: 3, guests: 1 });
   assert.equal(takeaway.table, null);
   await api('PATCH', '/orders/' + order.id + '/status', { status: 'completed' });
@@ -107,7 +122,7 @@ async function main() {
   const freshDish = await api('GET', '/dishes/' + dish.id);
   assert.equal(freshDish.recipeItems[0].stock, warehouse[1].Quantity);
   assert.equal(freshDish.recipeItems[0].price, warehouse[1].price);
-  console.log('HTTP → real RabbitMQ → real PostgreSQL passed: POST/list/detail supply, inventory, dishes, orders; separate batch prices, fractions, ISO dates, expiry and completion.');
+  console.log('HTTP → real RabbitMQ → real PostgreSQL passed: supply/inventory/dishes/orders, immutable order prices, fractional totals, adding positions, legacy null prices, ISO dates and completion.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   for (const app of apps.reverse()) await app.close();

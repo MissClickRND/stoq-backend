@@ -4,6 +4,7 @@
 /build
 /tmp
 
+AGENTS.md
 # Logs
 logs
 *.log

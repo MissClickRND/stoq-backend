@@ -3,16 +3,47 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  HttpException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddOrderItemsDto } from './dto/add-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderItemDto } from './dto/order-item.dto';
+import { CommandBusService } from '../common/rabbitMQ/command-bus.service';
+import { EXCHANGES, ROUTING_KEYS } from '../common/rabbitMQ/rabbitmq-topology';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly commandBusService: CommandBusService) {}
+
+  private async priceItems(items: OrderItemDto[]) {
+    return Promise.all(items.map(async item => {
+      if (!Number.isSafeInteger(item.dishId) || item.dishId < 1 ||
+        !Number.isSafeInteger(item.quantity) || item.quantity < 1) {
+        throw new BadRequestException('Выберите блюдо и положительное целое количество');
+      }
+      let response: any;
+      try {
+        response = await this.commandBusService.sendCommand(EXCHANGES.COMMANDS,
+          ROUTING_KEYS.GET_DISHES_BY_ID, { id: item.dishId });
+      } catch {
+        throw new ServiceUnavailableException('Каталог блюд недоступен. Повторите попытку');
+      }
+      if (!response?.success) {
+        throw new HttpException(response?.error?.message ?? 'Каталог блюд недоступен', response?.error?.status ?? 502);
+      }
+      const dish = response.data;
+      if (dish?.id !== item.dishId || typeof dish.name !== 'string' || !dish.name.trim() ||
+        typeof dish.salePrice !== 'number' || !Number.isFinite(dish.salePrice) || dish.salePrice < 0) {
+        throw new BadRequestException(`Для блюда #${item.dishId} не указана корректная цена продажи`);
+      }
+      return { dishId: item.dishId, quantity: item.quantity, name: dish.name,
+        imageURL: typeof dish.imageURL === 'string' ? dish.imageURL : null,
+        price: new Prisma.Decimal(dish.salePrice).toDecimalPlaces(2) };
+    }));
+  }
 
   private assertUniqueDishes(items: OrderItemDto[]) {
     const dishIds = items.map((item) => item.dishId);
@@ -62,10 +93,7 @@ export class OrdersService {
 
     if (items.length > 0) {
       data.items = {
-        create: items.map((item) => ({
-          dishId: item.dishId,
-          quantity: item.quantity,
-        })),
+        create: await this.priceItems(items),
       };
     }
 
@@ -99,13 +127,13 @@ export class OrdersService {
       );
     }
 
+    const pricedItems = await this.priceItems(dto.items);
     await this.prisma.$transaction(
-      dto.items.map((item) =>
+      pricedItems.map((item) =>
         this.prisma.orderItem.create({
           data: {
             orderId,
-            dishId: item.dishId,
-            quantity: item.quantity,
+            ...item,
           },
         }),
       ),
@@ -147,7 +175,16 @@ export class OrdersService {
   }
 
   private toResponse(order: any) {
-    return { ...order, date: new Date(order.date).toISOString(),
+    const items = (order.items ?? []).map((item: any) => {
+      const price = item.price == null ? null : new Prisma.Decimal(item.price);
+      return { ...item, name: item.name ?? null, imageURL: item.imageURL ?? null,
+        price: price?.toNumber() ?? null,
+        totalPrice: price?.mul(item.quantity).toDecimalPlaces(2).toNumber() ?? null };
+    });
+    const totalPrice = items.some(item => item.totalPrice === null) ? null :
+      items.reduce((sum: Prisma.Decimal, item: any) => sum.add(new Prisma.Decimal(item.price).mul(item.quantity)),
+        new Prisma.Decimal(0)).toDecimalPlaces(2).toNumber();
+    return { ...order, items, totalPrice, date: new Date(order.date).toISOString(),
       created_at: order.created_at ? new Date(order.created_at).toISOString() : undefined,
       updated_at: order.updated_at ? new Date(order.updated_at).toISOString() : undefined };
   }
