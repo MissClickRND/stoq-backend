@@ -1,0 +1,46 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  ai-service:
+    build: ./backend/stoq-ai-service
+    env_file: ./backend/stoq-ai-service/.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3006
+      NODE_ENV: production
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@rabbitmq:5672
+      AI_PROXY_URL: ${AI_DOCKER_PROXY_URL:-}
+    ports:
+      - "127.0.0.1:${AI_PORT:-3006}:3006"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  stoq-gate:
+    build: ./backend/stoq-gate
+    environment:
+      PORT: 3000
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@rabbitmq:5672
+      AI_RPC_TIMEOUT_MS: 150000
+      AI_MAX_FILE_SIZE_MB: 20
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+volumes:
+  rabbitmq-data:

@@ -7,9 +7,10 @@ import { SupplyController } from './controllers/inventory/supplies/supplies.cont
 import { InventoryController } from './controllers/inventory/inventory/inventory.controller';
 import { CommandBusModule } from './common/rabbitMQ/command-bus.module';
 import { OrderController } from './controllers/order/order.controller';
+import { AiModule } from './controllers/ai/ai.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), CommandBusModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), CommandBusModule, AiModule],
   controllers: [
     ProductController,
     // RecipesController,

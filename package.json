@@ -1,0 +1,11 @@
+{
+  "name": "stoq-backend",
+  "private": true,
+  "scripts": {
+    "ai:dev": "npm --prefix backend/stoq-ai-service run start:dev",
+    "gate:dev": "npm --prefix backend/stoq-gate run start:dev",
+    "build:ai": "npm --prefix backend/stoq-ai-service run build && npm --prefix backend/stoq-gate run build",
+    "test:ai": "npm --prefix backend/stoq-ai-service test && npm --prefix backend/stoq-gate test -- --runInBand --testPathPatterns=ai.controller",
+    "test:ai-integration": "npm run build:ai && node scripts/test-ai-integration.cjs"
+  }
+}

@@ -1,0 +1,12 @@
+services:
+  ai-service:
+    build: .
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3006
+      NODE_ENV: production
+      RABBITMQ_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${PORT:-3006}:3006"
+    restart: unless-stopped

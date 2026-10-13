@@ -4,12 +4,17 @@ export const EXCHANGES = {
 } as const;
 
 export const QUEUES = {
+  AI_COMMANDS: 'ai.commands',
+  AI_HEALTH: 'ai.health',
   ORDERS_COMMANDS: 'orders.commands',
   CATALOG_COMMANDS: 'catalog.commands',
   INVENTORY_COMMANDS: 'inventory.commands',
 } as const;
 
 export const ROUTING_KEYS = {
+  RECOGNIZE_UPD: 'command.ai.recognize_upd',
+  AI_HEALTH: 'command.ai.health',
+  AI_COMMANDS_MASK: 'command.ai.#',
   CREATE_PRODUCT: 'command.catalog.create_product', // POST /product
   CREATE_MANY_PRODUCT: 'command.catalog.create_many_product', // POST /product/few
   GET_PRODUCT: 'command.catalog.get_product', // GET /product
