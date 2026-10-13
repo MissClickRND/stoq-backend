@@ -1,6 +1,10 @@
 import { RecommendationService } from "./recommendations.service";
-import { DishData, ProductStock } from "./types/recommendation.types";
 import { CommandBusService } from "../common/rabbitMQ/command-bus.service";
+import {
+  DishData,
+  ProductStock,
+  RecommendationBatch,
+} from "./types/recommendation.types";
 
 describe("RecommendationService", () => {
   let service: RecommendationService;

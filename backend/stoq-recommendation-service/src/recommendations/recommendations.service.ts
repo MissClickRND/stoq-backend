@@ -6,7 +6,9 @@ import {
     DishData,
     DishRecommendation,
     DishStatus,
+    DishSuggestion,
     ProductStock,
+    RecommendationBatch,
 } from "./types/recommendation.types";
 
 @Injectable()
@@ -186,6 +188,149 @@ export class RecommendationService {
             (dish) =>
                 dish.status === "STOP_LIST" &&
                 (!query || dish.dishName.toLowerCase().includes(query)),
+        );
+    }
+
+    calculateDishRecommendations(
+        dishes: DishData[],
+        batches: RecommendationBatch[],
+    ): DishSuggestion[] {
+        const now = new Date();
+
+        const availableBatches = batches.filter(
+            (batch) =>
+                batch.status === "ACTIVE" &&
+                new Date(batch.expiresAt) > now &&
+                batch.availableQuantity > 0,
+        );
+
+        const recommendations: DishSuggestion[] = [];
+
+        for (const dish of dishes) {
+            if (
+                !dish.recipeItems.length ||
+                dish.salePrice == null ||
+                Number(dish.salePrice) <= 0
+            ) {
+                continue;
+            }
+
+            let maxPortions = Infinity;
+            let costPrice = 0;
+            let costKnown = true;
+            let urgencyScore = 0;
+
+            const expiringProducts = new Set<string>();
+
+            for (const item of dish.recipeItems) {
+                const quantityPerPortion = Number(item.quantityPerPortion);
+
+                if (
+                    !Number.isFinite(quantityPerPortion) ||
+                    quantityPerPortion <= 0
+                ) {
+                    maxPortions = 0;
+                    break;
+                }
+
+                const productBatches = availableBatches.filter(
+                    (batch) => batch.productId === item.productId,
+                );
+
+                const totalQuantity = productBatches.reduce(
+                    (sum, batch) => sum + Number(batch.availableQuantity),
+                    0,
+                );
+
+                const portions = Math.floor(totalQuantity / quantityPerPortion);
+
+                maxPortions = Math.min(maxPortions, portions);
+
+                if (portions === 0) {
+                    continue;
+                }
+
+                // Средняя себестоимость единицы продукта
+                const hasUnknownPrice = productBatches.some(
+                    (batch) => batch.price == null,
+                );
+
+                if (hasUnknownPrice || productBatches.length === 0) {
+                    costKnown = false;
+                } else {
+                    const totalCost = productBatches.reduce(
+                        (sum, batch) =>
+                            sum +
+                            Number(batch.price) *
+                                Number(batch.availableQuantity),
+                        0,
+                    );
+
+                    costPrice +=
+                        (totalCost / totalQuantity) * quantityPerPortion;
+                }
+
+                // Проверяем партии, которые истекают в ближайшие 3 дня
+                let productUrgency = 0;
+
+                for (const batch of productBatches) {
+                    const expiresAt = new Date(batch.expiresAt);
+                    const daysLeft =
+                        (expiresAt.getTime() - now.getTime()) /
+                        (1000 * 60 * 60 * 24);
+
+                    if (daysLeft <= 1) {
+                        productUrgency +=
+                            Number(batch.availableQuantity) /
+                            quantityPerPortion;
+                    } else if (daysLeft <= 3) {
+                        productUrgency +=
+                            (Number(batch.availableQuantity) /
+                                quantityPerPortion) *
+                            0.5;
+                    }
+                }
+
+                if (productUrgency > 0) {
+                    expiringProducts.add(item.productName);
+                    urgencyScore += Math.min(productUrgency, 1);
+                }
+            }
+
+            // Не рекомендуем блюдо, если его нельзя приготовить
+            if (maxPortions < 1 || !Number.isFinite(maxPortions)) {
+                continue;
+            }
+
+            const salePrice = Number(dish.salePrice);
+            const profit = costKnown ? salePrice - costPrice : null;
+
+            // Доля прибыли в цене продажи
+            const profitMargin =
+                profit !== null
+                    ? Math.max(0, Math.min(profit / salePrice, 1))
+                    : 0;
+
+            // Объединяем срочность использования продуктов и прибыльность
+            const urgency = urgencyScore / dish.recipeItems.length;
+
+            const recommendationScore =
+                Math.round((urgency * 50 + profitMargin * 50) * 100) / 100;
+
+            recommendations.push({
+                dishId: dish.id,
+                dishName: dish.name,
+                salePrice,
+                costPrice: costKnown ? Math.round(costPrice * 100) / 100 : null,
+                profit: profit !== null ? Math.round(profit * 100) / 100 : null,
+                maxPortions,
+                expiringProducts: [...expiringProducts],
+                recommendationScore,
+            });
+        }
+
+        return recommendations.sort(
+            (a, b) => b.recommendationScore - a.recommendationScore,
         );
     }
 }

@@ -17,7 +17,7 @@ export class RecommendationsController {
         example: "беф",
     })
     @ApiOkResponse({ description: "Стоп-лист" })
-    @Get()
+    @Get("stop-list")
     findAll(@Query("search") search?: string) {
         return this.recommendationService.getStopListFromServices(search);
     }
