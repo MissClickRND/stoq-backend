@@ -1,4 +1,24 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Get, Query } from "@nestjs/common";
+import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
+import { RecommendationService } from "./recommendations.service";
 
-@Controller('recommendations')
-export class RecommendationsController {}
+@ApiTags("Recommendations")
+@Controller("recommendations")
+export class RecommendationsController {
+    constructor(
+        private readonly recommendationService: RecommendationService,
+    ) {}
+
+    @ApiOperation({ summary: "Получить стоп-лист блюд" })
+    @ApiQuery({
+        name: "search",
+        required: false,
+        description: "Подстрока для поиска блюда в стоп-листе",
+        example: "беф",
+    })
+    @ApiOkResponse({ description: "Стоп-лист" })
+    @Get()
+    findAll(@Query("search") search?: string) {
+        return this.recommendationService.getStopListFromServices(search);
+    }
+}
