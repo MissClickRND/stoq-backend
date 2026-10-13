@@ -34,3 +34,22 @@ export interface RecommendationReason {
   status: StopListReason;
   name: string;
 }
+
+export interface RecommendationBatch {
+  productId: number;
+  availableQuantity: number;
+  price: number | null;
+  expiresAt: Date;
+  status: "ACTIVE" | "DEPLETED" | "EXPIRED" | "QUARANTINED";
+}
+
+export interface DishSuggestion {
+  dishId: number;
+  dishName: string;
+  salePrice: number;
+  costPrice: number | null;
+  profit: number | null;
+  maxPortions: number;
+  expiringProducts: string[];
+  recommendationScore: number;
+}

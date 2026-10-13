@@ -10,6 +10,7 @@ export const QUEUES = {
   ORDERS_COMMANDS: 'orders.commands',
   CATALOG_COMMANDS: 'catalog.commands',
   INVENTORY_COMMANDS: 'inventory.commands',
+  RECOMMENDATION_COMMANDS: 'recommendation.commands',
 } as const;
 
 export const ROUTING_KEYS = {
@@ -17,7 +18,7 @@ export const ROUTING_KEYS = {
   GET_INVENTORY_STOCK: 'command.inventory.get_stock',
   RECOGNIZE_UPD: 'command.ai.recognize_upd',
   AI_HEALTH: 'command.ai.health',
-  AI_COMMANDS_MASK: 'command.ai.#',
+
   CREATE_PRODUCT: 'command.catalog.create_product', // POST /product
   RESOLVE_UPD_PRODUCTS: 'command.catalog.resolve_upd_products', // POST /ai/supply
   CREATE_MANY_PRODUCT: 'command.catalog.create_many_product', // POST /product/few
@@ -54,7 +55,11 @@ export const ROUTING_KEYS = {
   GET_INVENTORY_BY_ID: 'command.inventory.get_inventory_by_id', // GET /inventory/:id
   UPDATE_QUANTITY_INVENTORY: 'command.inventory.update_quantity_inventory', // PUT /inventory
 
+  GET_RECOMMENDATION: 'command.recommendation.get_recommendation', // GET /recommendation
+
+  AI_COMMANDS_MASK: 'command.ai.#',
   CATALOG_COMMANDS_MASK: 'command.catalog.#',
   ORDERS_COMMANDS_MASK: 'command.order.#',
   INVENTORY_COMMANDS_MASK: 'command.inventory.#',
+  RECOMMENDATION_COMMANDS_MASK: 'command.recommendation.#',
 } as const;
