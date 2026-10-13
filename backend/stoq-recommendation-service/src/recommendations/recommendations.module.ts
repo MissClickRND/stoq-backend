@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
-import { RecommendationsService } from './recommendations.service';
+import { RecommendationService } from './recommendations.service';
 import { RecommendationsController } from './recommendations.controller';
+import { CommandBusModule } from '../common/rabbitMQ/command-bus.module';
 
 @Module({
-  providers: [RecommendationsService],
-  controllers: [RecommendationsController]
+  imports: [CommandBusModule],
+  providers: [RecommendationService],
+  controllers: [RecommendationsController],
 })
 export class RecommendationsModule {}

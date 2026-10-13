@@ -1,4 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { StopListReason } from "@prisma/client";
+import { CommandBusService } from "../common/rabbitMQ/command-bus.service";
+import { EXCHANGES, ROUTING_KEYS } from "../common/rabbitMQ/rabbitmq-topology";
 import {
     DishData,
     DishRecommendation,
@@ -10,6 +13,83 @@ import {
 export class RecommendationService {
     private readonly lowStockLimit = 3;
 
+    constructor(private readonly commandBusService: CommandBusService) {}
+
+    async getStopListFromServices(
+        search?: string,
+    ): Promise<DishRecommendation[]> {
+        try {
+            const [catalogResponse, inventoryResponse] = await Promise.all([
+                this.commandBusService.sendCommand<RpcResponse<CatalogDish[]>>(
+                    EXCHANGES.COMMANDS,
+                    ROUTING_KEYS.GET_DISHES,
+                    {},
+                ),
+                this.commandBusService.sendCommand<
+                    RpcResponse<InventoryBatch[]>
+                >(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY, {}),
+            ]);
+
+            if (!catalogResponse.success || !inventoryResponse.success) {
+                throw new Error("Catalog or Inventory returned an RPC error");
+            }
+
+            const dishes: DishData[] = catalogResponse.data.map((dish) => ({
+                id: dish.id,
+                name: dish.name,
+                salePrice: dish.salePrice,
+                recipeItems: dish.recipeItems.map((item) => ({
+                    productId: item.productId,
+                    productName:
+                        item.product?.name?.trim() ||
+                        `Продукт ${item.productId}`,
+                    quantityPerPortion: item.quantity,
+                })),
+            }));
+
+            const stocksByProduct = new Map<number, ProductStock>();
+            const now = Date.now();
+
+            for (const batch of inventoryResponse.data) {
+                const stock = stocksByProduct.get(batch.productId) ?? {
+                    productId: batch.productId,
+                    availableQuantity: 0,
+                    expiredQuantity: 0,
+                };
+                const quantity = batch.balance?.availableQuantity;
+                const expiresAt = Date.parse(batch.expiresAt);
+
+                if (
+                    typeof quantity !== "number" ||
+                    !Number.isFinite(quantity) ||
+                    quantity < 0 ||
+                    Number.isNaN(expiresAt)
+                ) {
+                    stocksByProduct.set(batch.productId, stock);
+                    continue;
+                }
+
+                if (expiresAt <= now) {
+                    stock.expiredQuantity += quantity;
+                } else {
+                    stock.availableQuantity += quantity;
+                }
+
+                stocksByProduct.set(batch.productId, stock);
+            }
+
+            return this.getStopList(
+                dishes,
+                [...stocksByProduct.values()],
+                search,
+            );
+        } catch {
+            throw new ServiceUnavailableException(
+                "Не удалось получить данные из Catalog или Inventory через RabbitMQ",
+            );
+        }
+    }
+
     calculateRecommendations(
         dishes: DishData[],
         stocks: ProductStock[],
@@ -18,46 +98,61 @@ export class RecommendationService {
             stocks.map((stock) => [stock.productId, stock]),
         );
 
-        const calculated = dishes.map((dish) => {
-            let maxPortions = Infinity;
-            const reasons: string[] = [];
+        return dishes.map((dish) => {
+            let maxPortions = dish.recipeItems.length ? Infinity : 0;
+            const reasons = new Map<
+                string,
+                DishRecommendation["reasons"][number]
+            >();
 
-            if (dish.recipeItems.length === 0) {
-                maxPortions = 0;
-                reasons.push("NO_RECIPE");
-            }
+            for (const item of dish.recipeItems) {
+                const stock = stockMap.get(item.productId);
+                const productName = item.productName.trim();
 
-            for (const ingredient of dish.recipeItems) {
-                const stock = stockMap.get(ingredient.productId);
-
-                if (!stock) {
+                if (
+                    !stock ||
+                    !Number.isFinite(item.quantityPerPortion) ||
+                    item.quantityPerPortion <= 0 ||
+                    !Number.isFinite(stock.availableQuantity) ||
+                    stock.availableQuantity < 0
+                ) {
                     maxPortions = 0;
-                    reasons.push(`NO_STOCK_DATA:${ingredient.productName}`);
-                    continue;
-                }
 
-                if (ingredient.quantityPerPortion <= 0) {
-                    maxPortions = 0;
-                    reasons.push(`INVALID_RECIPE:${ingredient.productName}`);
+                    if (productName) {
+                        reasons.set(
+                            `${StopListReason.INSUFFICIENT_STOCK}:${item.productId}`,
+                            {
+                                status: StopListReason.INSUFFICIENT_STOCK,
+                                name: productName,
+                            },
+                        );
+                    }
                     continue;
                 }
 
                 const portions = Math.floor(
-                    stock.availableQuantity / ingredient.quantityPerPortion,
+                    stock.availableQuantity / item.quantityPerPortion,
                 );
-
                 maxPortions = Math.min(maxPortions, portions);
 
-                if (portions === 0) {
-                    reasons.push(
-                        `INSUFFICIENT_STOCK:${ingredient.productName}`,
+                if (portions === 0 && productName) {
+                    reasons.set(
+                        `${StopListReason.INSUFFICIENT_STOCK}:${item.productId}`,
+                        {
+                            status: StopListReason.INSUFFICIENT_STOCK,
+                            name: productName,
+                        },
                     );
-                }
 
-                if (stock.expiringQuantity > 0) {
-                    reasons.push(
-                        `USES_EXPIRING_INGREDIENTS:${ingredient.productName}`,
-                    );
+                    if (stock.expiredQuantity > 0) {
+                        reasons.set(
+                            `${StopListReason.EXPIRED_INGREDIENT}:${item.productId}`,
+                            {
+                                status: StopListReason.EXPIRED_INGREDIENT,
+                                name: productName,
+                            },
+                        );
+                    }
                 }
             }
 
@@ -65,93 +160,54 @@ export class RecommendationService {
                 maxPortions === 0
                     ? "STOP_LIST"
                     : maxPortions <= this.lowStockLimit
-                        ? "LOW_STOCK"
-                        : "AVAILABLE";
+                      ? "LOW_STOCK"
+                      : "AVAILABLE";
 
             return {
                 dishId: dish.id,
                 dishName: dish.name,
                 salePrice: dish.salePrice,
                 status,
-                maxPortions,
-                reasons: [...new Set(reasons)],
+                maxPortions: Number.isFinite(maxPortions) ? maxPortions : 0,
+                priority: 0,
+                reasons: status === "STOP_LIST" ? [...reasons.values()] : [],
             };
         });
-
-        const sellable = calculated.filter(
-            (dish) => dish.status !== "STOP_LIST",
-        );
-
-        const maxPortionsAcrossDishes = Math.max(
-            1,
-            ...sellable.map((dish) => dish.maxPortions),
-        );
-
-        const prices = sellable
-            .map((dish) => dish.salePrice)
-            .filter((price): price is number => price !== null);
-
-        const minPrice = prices.length ? Math.min(...prices) : 0;
-        const maxPrice = prices.length ? Math.max(...prices) : 0;
-
-        return calculated
-            .map((dish) => {
-                if (dish.status === "STOP_LIST") {
-                    return { ...dish, priority: 0 };
-                }
-
-                const source = dishes.find((item) => item.id === dish.dishId)!;
-
-                const expiringScore = Math.min(
-                    100,
-                    source.recipeItems.reduce((score, ingredient) => {
-                        const stock = stockMap.get(ingredient.productId);
-
-                        if (!stock || ingredient.quantityPerPortion <= 0) {
-                            return score;
-                        }
-
-                        const expiringPortions = Math.floor(
-                            stock.expiringQuantity /
-                                ingredient.quantityPerPortion,
-                        );
-
-                        return Math.max(
-                            score,
-                            (Math.min(expiringPortions, dish.maxPortions) /
-                                Math.max(1, dish.maxPortions)) *
-                                100,
-                        );
-                    }, 0),
-                );
-
-                const stockScore =
-                    (dish.maxPortions / maxPortionsAcrossDishes) * 100;
-
-                const priceScore =
-                    dish.salePrice !== null && maxPrice > minPrice
-                        ? ((dish.salePrice - minPrice) /
-                              (maxPrice - minPrice)) * 100 : 0;
-
-                const priority = Math.round(
-                    expiringScore * 0.5 + stockScore * 0.3 + priceScore * 0.2,
-                );
-
-                return { ...dish, priority };
-            })
-            .sort(
-                (a, b) =>
-                    b.priority - a.priority ||
-                    (b.salePrice ?? 0) - (a.salePrice ?? 0),
-            );
     }
 
     getStopList(
         dishes: DishData[],
         stocks: ProductStock[],
+        search?: string,
     ): DishRecommendation[] {
+        const query = search?.trim().toLowerCase();
+
         return this.calculateRecommendations(dishes, stocks).filter(
-            (dish) => dish.status === "STOP_LIST",
+            (dish) =>
+                dish.status === "STOP_LIST" &&
+                (!query || dish.dishName.toLowerCase().includes(query)),
         );
     }
+}
+
+interface RpcResponse<T> {
+    success: boolean;
+    data: T;
+}
+
+interface CatalogDish {
+    id: number;
+    name: string;
+    salePrice: number | null;
+    recipeItems: Array<{
+        productId: number;
+        quantity: number;
+        product?: { name?: string };
+    }>;
+}
+
+interface InventoryBatch {
+    productId: number;
+    expiresAt: string;
+    balance: { availableQuantity: number } | null;
 }

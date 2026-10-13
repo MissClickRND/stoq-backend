@@ -1,7 +1,8 @@
-export type DishStatus = 'AVAILABLE' | 'LOW_STOCK' | 'STOP_LIST';
+export type DishStatus = "AVAILABLE" | "LOW_STOCK" | "STOP_LIST";
+import { StopListReason } from "@prisma/client";
 
 export interface RecipeIngredient {
-  productId: string;
+  productId: number;
   productName: string;
   quantityPerPortion: number;
 }
@@ -14,9 +15,9 @@ export interface DishData {
 }
 
 export interface ProductStock {
-  productId: string;
+  productId: number;
   availableQuantity: number;
-  expiringQuantity: number;
+  expiredQuantity: number;
 }
 
 export interface DishRecommendation {
@@ -26,5 +27,10 @@ export interface DishRecommendation {
   status: DishStatus;
   maxPortions: number;
   priority: number;
-  reasons: string[];
+  reasons: RecommendationReason[];
+}
+
+export interface RecommendationReason {
+  status: StopListReason;
+  name: string;
 }
