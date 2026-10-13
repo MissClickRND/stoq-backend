@@ -250,7 +250,6 @@ export class RecommendationService {
                     continue;
                 }
 
-                // Средняя себестоимость единицы продукта
                 const hasUnknownPrice = productBatches.some(
                     (batch) => batch.price == null,
                 );
@@ -270,7 +269,6 @@ export class RecommendationService {
                         (totalCost / totalQuantity) * quantityPerPortion;
                 }
 
-                // Проверяем партии, которые истекают в ближайшие 3 дня
                 let productUrgency = 0;
 
                 for (const batch of productBatches) {
@@ -297,7 +295,6 @@ export class RecommendationService {
                 }
             }
 
-            // Не рекомендуем блюдо, если его нельзя приготовить
             if (maxPortions < 1 || !Number.isFinite(maxPortions)) {
                 continue;
             }
@@ -305,13 +302,11 @@ export class RecommendationService {
             const salePrice = Number(dish.salePrice);
             const profit = costKnown ? salePrice - costPrice : null;
 
-            // Доля прибыли в цене продажи
             const profitMargin =
                 profit !== null
                     ? Math.max(0, Math.min(profit / salePrice, 1))
                     : 0;
 
-            // Объединяем срочность использования продуктов и прибыльность
             const urgency = urgencyScore / dish.recipeItems.length;
 
             const recommendationScore =
