@@ -3,13 +3,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddOrderItemsDto } from './dto/add-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { OrderItemDto } from './dto/order-item.dto';
 
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private assertUniqueDishes(items: OrderItemDto[]) {
+    const dishIds = items.map((item) => item.dishId);
+
+    if (new Set(dishIds).size !== dishIds.length) {
+      throw new ConflictException(
+        'В списке не должно быть повторяющихся блюд',
+      );
+    }
+  }
 
   private async ensureOrderExists(orderId: number) {
     const order = await this.prisma.order.findUnique({
@@ -31,9 +43,29 @@ export class OrdersService {
     }
   }
 
-  async create() {
+  async create(dto: CreateOrderDto = {}) {
+    const items = dto.items ?? [];
+
+    if (items.length > 0) {
+      this.assertUniqueDishes(items);
+    }
+
+    const data: Prisma.OrderCreateInput = {};
+
+    if (items.length > 0) {
+      data.items = {
+        create: items.map((item) => ({
+          dishId: item.dishId,
+          quantity: item.quantity,
+        })),
+      };
+    }
+
     return this.prisma.order.create({
-      data: {},
+      data,
+      include: {
+        items: true,
+      },
     });
   }
 
@@ -42,11 +74,9 @@ export class OrdersService {
 
     await this.ensureOrderExists(orderId);
 
-    const dishIds = dto.items.map((item) => item.dishId);
+    this.assertUniqueDishes(dto.items);
 
-    if (new Set(dishIds).size !== dishIds.length) {
-      throw new ConflictException('В списке не должно быть повторяющихся блюд');
-    }
+    const dishIds = dto.items.map((item) => item.dishId);
 
     const existingItems = await this.prisma.orderItem.findMany({
       where: { orderId },
@@ -56,7 +86,9 @@ export class OrdersService {
     const existingDishIds = existingItems.map((item) => item.dishId);
 
     if (dishIds.some((id) => existingDishIds.includes(id))) {
-      throw new ConflictException('Одно или несколько блюд уже есть в заказе');
+      throw new ConflictException(
+        'Одно или несколько блюд уже есть в заказе',
+      );
     }
 
     await this.prisma.$transaction(

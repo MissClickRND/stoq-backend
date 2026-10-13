@@ -23,6 +23,7 @@ import {
 import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 import { AddOrderItemsDto } from './dto/request/add-item.dto';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
+import { CreateOrderDto } from './dto/request/create-order.dto';
 
 @ApiTags('Заказы')
 @Controller('orders')
@@ -37,10 +38,21 @@ export class OrderController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Создать заказ' })
-  @ApiCreatedResponse({ description: 'Заказ успешно создан' })
-  async create() {
-    const payload = {};
+  @ApiOperation({
+    summary: 'Создать заказ (опционально сразу с блюдами)',
+  })
+  @ApiBody({ type: CreateOrderDto })
+  @ApiCreatedResponse({
+    description: 'Заказ успешно создан',
+  })
+  @ApiBadRequestResponse({
+    description: 'Некорректные данные',
+  })
+  @ApiConflictResponse({
+    description: 'В запросе есть повторяющиеся блюда',
+  })
+  async create(@Body() dto: CreateOrderDto) {
+    const payload = { dto: dto };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_ORDER,

@@ -8,6 +8,7 @@ import {
   QUEUES,
 } from 'src/common/rabbitMQ/rabbitmq-topology';
 import { AddOrderItemsDto } from './dto/add-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 @Injectable()
 export class OrdersRPCController {
@@ -18,8 +19,8 @@ export class OrdersRPCController {
     routingKey: ROUTING_KEYS.CREATE_ORDER,
     queue: QUEUES.ORDERS_COMMANDS,
   })
-  create() {
-    return executeRpc(() => this.ordersService.create());
+  create(payload: { dto: CreateOrderDto }) {
+    return executeRpc(() => this.ordersService.create(payload.dto));
   }
 
   @RabbitRPC({

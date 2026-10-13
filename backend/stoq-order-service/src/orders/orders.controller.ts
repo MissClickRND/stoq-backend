@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Post,
 } from '@nestjs/common';
+
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -18,8 +19,10 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { OrdersService } from './orders.service';
 import { AddOrderItemsDto } from './dto/add-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 @ApiTags('Заказы')
 @Controller('orders')
@@ -27,10 +30,21 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Создать заказ' })
-  @ApiCreatedResponse({ description: 'Заказ успешно создан' })
-  create() {
-    return this.ordersService.create();
+  @ApiOperation({
+    summary: 'Создать заказ (опционально сразу с блюдами)',
+  })
+  @ApiBody({ type: CreateOrderDto })
+  @ApiCreatedResponse({
+    description: 'Заказ успешно создан',
+  })
+  @ApiBadRequestResponse({
+    description: 'Некорректные данные',
+  })
+  @ApiConflictResponse({
+    description: 'В запросе есть повторяющиеся блюда',
+  })
+  create(@Body() dto: CreateOrderDto) {
+    return this.ordersService.create(dto);
   }
 
   @Get()
