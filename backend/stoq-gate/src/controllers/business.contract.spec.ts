@@ -49,7 +49,8 @@ describe('Gateway business POST / GET contracts', () => {
   });
   it('order POST preserves ISO metadata; list and detail GET preserve all fields', async () => {
     const body = { date: '2026-10-13T12:30:00Z', type: 'dine-in', table: 3, guests: 4, items: [{ dishId: 1, quantity: 2 }] };
-    const order = { id: 1, ...body };
+    const order = { id: 1, ...body, totalPrice: 600,
+      items: [{ dishId: 1, quantity: 2, name: 'Салат', price: 300, totalPrice: 600 }] };
     sendCommand.mockResolvedValue({ success: true, data: order });
     await request(app.getHttpServer()).post('/orders').send(body).expect(201, order);
     expect(sendCommand.mock.calls[0][2].dto).toEqual(body);
@@ -69,7 +70,8 @@ describe('Gateway business POST / GET contracts', () => {
     for (const [name, fields] of [
       ['SupplyResponseDto', ['supplier', 'totalPrice']], ['SupplyItemResponseDto', ['price', 'totalPrice']],
       ['InventoryResponseDto', ['price', 'totalPrice']], ['DishResponseDto', ['category', 'availablePortions']],
-      ['RecipeItemResponseDto', ['price', 'stock', 'portions']], ['OrderResponseDto', ['date', 'type', 'table', 'guests']],
+      ['RecipeItemResponseDto', ['price', 'stock', 'portions']], ['OrderResponseDto', ['date', 'type', 'table', 'guests', 'totalPrice']],
+      ['OrderItemResponseDto', ['name', 'price', 'totalPrice']],
       ['CreateSupplyDto', ['supplier']], ['CreateSupplyItemDto', ['totalPrice']],
       ['CreateDishDto', ['category']], ['CreateOrderDto', ['date', 'type', 'table', 'guests']],
     ] as [string, string[]][]) for (const field of fields) expect(schemas[name].properties[field]).toBeDefined();

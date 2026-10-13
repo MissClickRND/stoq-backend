@@ -34,7 +34,10 @@ model OrderItem {
   id        Int  @id @default(autoincrement())
   orderId   Int
   dishId    Int  
-  quantity  Int     
+  quantity  Int
+  name      String?
+  imageURL  String?
+  price     Decimal? @db.Decimal(18, 2)
 
   order     Order   @relation(fields: [orderId], references: [id])
 

@@ -56,6 +56,8 @@ export const ROUTING_KEYS = {
 
   GET_RECOMMENDATION: 'command.recommendation.get_recommendation', // GET /recommendation
   GET_DISH_RECOMMENDATION: 'command.recommendation.get_dish_recommendation', // POST /recommendation/dishes
+  
+  GET_DEPENDENCY_GRAPH: 'command.recommendation.get_dependency_graph', // GET /analytics/graph
 
   AI_COMMANDS_MASK: 'command.ai.#',
   CATALOG_COMMANDS_MASK: 'command.catalog.#',

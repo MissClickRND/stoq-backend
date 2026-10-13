@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProductDto } from "./dto/request/create-product.dto";
@@ -12,10 +13,51 @@ import {
   ProductResponseDto,
 } from "./dto/response/product-response.dto";
 import { mapUnitToDto } from "./dto/response/unit-response.dto";
+import { normalizeProductName, updUnit, validateUpdRows, UpdProductRow } from './upd-products';
 
 @Injectable()
 export class ProductService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async resolveUpdProducts(payload: { items: UpdProductRow[] }) {
+    const rows = validateUpdRows(payload);
+    return this.prisma.$transaction(async tx => {
+      // Serialize scan imports so normalized names cannot be created twice concurrently.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(73120419)::text`;
+      const products = await tx.product.findMany({ include: { unit: true } });
+      const units = await tx.unit.findMany();
+      const result: { productId: number; name: string; unit: ProductResponseDto['unit'];
+        quantity: number | null; price: number | null; totalPrice: number | null }[] = [];
+      for (const row of rows) {
+        const name = row.name!.trim().replace(/\s+/g, ' ');
+        const matches = products.filter(product => normalizeProductName(product.name) === normalizeProductName(name));
+        if (matches.length > 1) throw new UnprocessableEntityException(`В каталоге несколько товаров «${name}». Уточните название`);
+        let product = matches[0];
+        if (product?.isDeleted) throw new UnprocessableEntityException(`Товар «${name}» удалён из каталога. Восстановите его перед сканированием`);
+        const requestedUnit = updUnit(row.unit!);
+        const matchingUnit = units.find(unit =>
+          updUnit(unit.shortName).shortName === requestedUnit.shortName ||
+          updUnit(unit.name).shortName === requestedUnit.shortName);
+        if (product && updUnit(product.unit.shortName).shortName !== requestedUnit.shortName &&
+          updUnit(product.unit.name).shortName !== requestedUnit.shortName) {
+          throw new UnprocessableEntityException(`Единица измерения «${row.unit}» для «${name}» отличается от единицы в каталоге`);
+        }
+        let unit = product?.unit ?? matchingUnit;
+        if (!unit) {
+          unit = await tx.unit.upsert({ where: { shortName: requestedUnit.shortName },
+            update: {}, create: { name: requestedUnit.name, shortName: requestedUnit.shortName } });
+          units.push(unit);
+        }
+        if (!product) {
+          product = await tx.product.create({ data: { name, unitId: unit.id }, include: { unit: true } });
+          products.push(product);
+        }
+        result.push({ productId: product.id, name: product.name, unit: { id: unit.id, name: unit.name, shortName: unit.shortName },
+          quantity: row.quantity, price: row.price, totalPrice: row.totalPrice });
+      }
+      return result;
+    }, { maxWait: 5000, timeout: 25000 });
+  }
 
   async findAll(search?: string): Promise<ProductResponseDto[]> {
     const products = await this.prisma.product.findMany({
