@@ -19,6 +19,7 @@ export const ROUTING_KEYS = {
   AI_HEALTH: 'command.ai.health',
   AI_COMMANDS_MASK: 'command.ai.#',
   CREATE_PRODUCT: 'command.catalog.create_product', // POST /product
+  RESOLVE_UPD_PRODUCTS: 'command.catalog.resolve_upd_products', // POST /ai/supply
   CREATE_MANY_PRODUCT: 'command.catalog.create_many_product', // POST /product/few
   GET_PRODUCT: 'command.catalog.get_product', // GET /product
   GET_PRODUCT_BY_ID: 'command.catalog.get_product_by_id', // GET /product/:id

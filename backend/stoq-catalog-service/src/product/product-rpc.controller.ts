@@ -5,10 +5,20 @@ import { CreateProductDto } from "./dto/request/create-product.dto";
 import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "src/common/utils/rpc-handler";
 import { CreateUnitDto } from "./dto/request/create-unit.dto";
+import { UpdProductRow } from './upd-products';
 
 @Injectable()
 export class ProductRPCController {
   constructor(private readonly productService: ProductService) {}
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.RESOLVE_UPD_PRODUCTS,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  resolveUpdProducts(payload: { items: UpdProductRow[] }) {
+    return executeRpc(() => this.productService.resolveUpdProducts(payload));
+  }
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
