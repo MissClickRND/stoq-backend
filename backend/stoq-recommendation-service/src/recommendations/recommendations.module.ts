@@ -5,6 +5,7 @@ import { CommandBusModule } from '../common/rabbitMQ/command-bus.module';
 import { RecommendationsRPCController } from './recommendations-rpc.controller';
 
 @Module({
+  exports: [RecommendationService],
   imports: [CommandBusModule],
   providers: [RecommendationService, RecommendationsRPCController],
   controllers: [RecommendationsController],

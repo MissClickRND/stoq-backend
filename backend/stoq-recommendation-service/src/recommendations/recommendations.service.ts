@@ -328,6 +328,78 @@ export class RecommendationService {
             (a, b) => b.recommendationScore - a.recommendationScore,
         );
     }
+
+    async getDishStatusesFromServices(): Promise<DishRecommendation[]> {
+        try {
+            const [catalogResponse, inventoryResponse] = await Promise.all([
+                this.commandBusService.sendCommand<RpcResponse<CatalogDish[]>>(
+                    EXCHANGES.COMMANDS,
+                    ROUTING_KEYS.GET_DISHES,
+                    {},
+                ),
+                this.commandBusService.sendCommand<
+                    RpcResponse<InventoryBatch[]>
+                >(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY, {}),
+            ]);
+
+            if (!catalogResponse.success || !inventoryResponse.success) {
+                throw new Error("Catalog or Inventory returned an RPC error");
+            }
+
+            const dishes: DishData[] = catalogResponse.data.map((dish) => ({
+                id: dish.id,
+                name: dish.name,
+                salePrice: dish.salePrice,
+                recipeItems: dish.recipeItems.map((item) => ({
+                    productId: item.productId,
+                    productName:
+                        item.product?.name?.trim() ||
+                        `Продукт ${item.productId}`,
+                    quantityPerPortion: item.quantity,
+                })),
+            }));
+
+            const stocksByProduct = new Map<number, ProductStock>();
+            const now = Date.now();
+
+            for (const batch of inventoryResponse.data) {
+                const stock = stocksByProduct.get(batch.productId) ?? {
+                    productId: batch.productId,
+                    availableQuantity: 0,
+                    expiredQuantity: 0,
+                };
+
+                const quantity = batch.balance?.availableQuantity;
+                const expiresAt = Date.parse(batch.expiresAt);
+
+                if (
+                    typeof quantity !== "number" ||
+                    !Number.isFinite(quantity) ||
+                    quantity < 0 ||
+                    Number.isNaN(expiresAt)
+                ) {
+                    stocksByProduct.set(batch.productId, stock);
+                    continue;
+                }
+
+                if (expiresAt <= now) {
+                    stock.expiredQuantity += quantity;
+                } else {
+                    stock.availableQuantity += quantity;
+                }
+
+                stocksByProduct.set(batch.productId, stock);
+            }
+
+            return this.calculateRecommendations(dishes, [
+                ...stocksByProduct.values(),
+            ]);
+        } catch {
+            throw new ServiceUnavailableException(
+                "Не удалось получить данные из Catalog или Inventory через RabbitMQ",
+            );
+        }
+    }
 }
 
 interface RpcResponse<T> {
