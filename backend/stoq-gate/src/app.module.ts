@@ -8,9 +8,14 @@ import { InventoryController } from './controllers/inventory/inventory/inventory
 import { CommandBusModule } from './common/rabbitMQ/command-bus.module';
 import { OrderController } from './controllers/order/order.controller';
 import { AiModule } from './controllers/ai/ai.module';
+import { RecommendationsController } from './controllers/recommendation/recommendation.controller';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), CommandBusModule, AiModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    CommandBusModule,
+    AiModule,
+  ],
   controllers: [
     ProductController,
     // RecipesController,
@@ -18,6 +23,7 @@ import { AiModule } from './controllers/ai/ai.module';
     SupplyController,
     InventoryController,
     OrderController,
+    RecommendationsController,
   ],
 })
 export class AppModule {}
