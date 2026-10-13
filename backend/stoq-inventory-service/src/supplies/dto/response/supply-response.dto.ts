@@ -3,12 +3,18 @@ import { ProductResponseDto } from "./product-response.dto";
 export interface SupplyResponseDto {
   id: number;
   supplyNumber: string;
+  supplier: string | null;
+  totalPrice: number | null;
   receivedAt: string;
   status: string;
 }
 
 export interface SupplyItemResponseDto {
   supplyItemId: number;
+  id: number;
+  productId: number;
+  price: number | null;
+  totalPrice: number | null;
   quantity: number;
   expiresAt: string;
   product: ProductResponseDto | null;
@@ -22,12 +28,15 @@ export interface SupplyItemEntityLike {
   id: number;
   productId: number;
   quantity: unknown;
+  totalPrice?: unknown;
   expiresAt: Date | string;
 }
 
 export interface SupplyEntityLike {
   id: number;
   supplyNumber: string;
+  supplier?: string | null;
+  totalPrice?: unknown;
   receivedAt: Date | string;
   status: string;
   items?: SupplyItemEntityLike[];
@@ -66,6 +75,8 @@ export function mapSupplyToDto(supply: SupplyEntityLike): SupplyResponseDto {
   return {
     id: supply.id,
     supplyNumber: supply.supplyNumber,
+    supplier: supply.supplier ?? null,
+    totalPrice: supply.totalPrice == null ? null : normalizeQuantity(supply.totalPrice),
     receivedAt: normalizeDate(supply.receivedAt),
     status: supply.status,
   };
@@ -77,6 +88,11 @@ export function mapSupplyItemToDto(
 ): SupplyItemResponseDto {
   return {
     supplyItemId: item.id,
+    id: item.id,
+    productId: item.productId,
+    totalPrice: item.totalPrice == null ? null : normalizeQuantity(item.totalPrice),
+    price: item.totalPrice == null || normalizeQuantity(item.quantity) <= 0 ? null :
+      Math.round(normalizeQuantity(item.totalPrice) / normalizeQuantity(item.quantity) * 1e6) / 1e6,
     quantity: normalizeQuantity(item.quantity),
     expiresAt: normalizeDate(item.expiresAt),
     product,

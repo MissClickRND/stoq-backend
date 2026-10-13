@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["inventory", "supply"]
+}
+
+model Supply {
+  id           Int          @id @default(autoincrement())
+  supplyNumber String       @unique @map("supply_number")
+  status       SupplyStatus @default(RECEIVED)
+  receivedAt   DateTime     @default(now()) @map("received_at") @db.Timestamptz(6)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  items        SupplyItem[]
+
+  @@map("supplies")
+  @@schema("supply")
+}
+
+model SupplyItem {
+  id            Int      @id @default(autoincrement())
+  supplyId      Int      @map("supply_id")
+  productId     Int      @map("product_id")
+  quantity      Decimal  @db.Decimal
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  supply        Supply   @relation(fields: [supplyId], references: [id])
+
+  @@index([supplyId])
+  @@map("supply_items")
+  @@schema("supply")
+}
+
+model Batch {
+  id              Int           @id @default(autoincrement())
+  supplyId        Int           @map("supply_id")
+  productId       Int           @map("product_id")
+  initialQuantity Decimal       @map("initial_quantity") @db.Decimal
+  expiresAt       DateTime      @map("expires_at") @db.Timestamptz(6)
+  status          BatchStatus   @default(ACTIVE)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  balance         BatchBalance?
+
+  @@index([supplyId])
+  @@index([productId])
+  @@map("batches")
+  @@schema("inventory")
+}
+
+model BatchBalance {
+  batchId           Int      @id @map("batch_id")
+  availableQuantity Decimal  @default(0) @map("available_quantity") @db.Decimal
+  reservedQuantity  Decimal  @default(0) @map("reserved_quantity") @db.Decimal
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  batch             Batch    @relation(fields: [batchId], references: [id])
+
+  @@map("batch_balances")
+  @@schema("inventory")
+}
+
+enum SupplyStatus {
+  RECEIVED
+  CANCELLED
+  IN_TRANSIT
+
+  @@schema("supply")
+}
+
+enum BatchStatus {
+  ACTIVE
+  DEPLETED
+  EXPIRED
+  QUARANTINED
+
+  @@schema("inventory")
+}

@@ -1,7 +1,8 @@
+import { SupplyResponseDto } from '../common/dto/business-response.dto';
 import {
   Controller,
   Get,
-  Put,
+  Post,
   Body,
   Param,
   ParseIntPipe,
@@ -25,10 +26,10 @@ import { SupplyService } from "./supplies.service";
 export class SupplyController {
   constructor(private readonly supplyService: SupplyService) {}
 
-  @Put()
+  @Post()
   @ApiOperation({ summary: "Принять новую поставку" })
   @ApiBody({ type: CreateSupplyDto })
-  @ApiCreatedResponse({ description: "Поставка успешно принята" })
+  @ApiCreatedResponse({ type: SupplyResponseDto, description: "Поставка успешно принята" })
   @ApiConflictResponse({
     description: "Поставка с таким номером уже существует",
   })
@@ -38,7 +39,7 @@ export class SupplyController {
 
   @Get()
   @ApiOperation({ summary: "Получить список всех поставок" })
-  @ApiOkResponse({ description: "Список поставок" })
+  @ApiOkResponse({ type: SupplyResponseDto, isArray: true, description: "Список поставок" })
   async findAll() {
     return this.supplyService.findAll();
   }
@@ -46,7 +47,7 @@ export class SupplyController {
   @Get(":id")
   @ApiOperation({ summary: "Получить детали поставки" })
   @ApiParam({ name: "id", description: "ID поставки", example: 1 })
-  @ApiOkResponse({ description: "Детали поставки" })
+  @ApiOkResponse({ type: SupplyResponseDto, description: "Детали поставки" })
   @ApiBadRequestResponse({ description: "Некорректный ID поставки" })
   @ApiNotFoundResponse({ description: "Поставка не найдена" })
   async findOne(@Param("id", ParseIntPipe) id: number) {

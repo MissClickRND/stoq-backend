@@ -13,6 +13,12 @@ import { UpdateQuantityDto } from "./dto/request/update-quantity.dto";
 export class InventoryRPCController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_INVENTORY_STOCK,
+    queue: QUEUES.INVENTORY_STOCK })
+  getStock(payload: { productIds: number[] }) {
+    return executeRpc(() => this.inventoryService.getStock(payload.productIds));
+  }
+
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.GET_INVENTORY,

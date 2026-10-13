@@ -23,8 +23,8 @@ export class DishesRPCController {
     routingKey: ROUTING_KEYS.GET_DISHES,
     queue: QUEUES.CATALOG_COMMANDS,
   })
-  findAll() {
-    return executeRpc(() => this.dishesService.findAll());
+  findAll(payload: { search?: string }) {
+    return executeRpc(() => this.dishesService.findAll(payload.search));
   }
 
   @RabbitRPC({

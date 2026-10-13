@@ -1,4 +1,4 @@
-import { IsInt, Min } from "class-validator";
+import { IsInt, Min, IsNumber, IsPositive } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class RecipeItemDto {
@@ -16,7 +16,7 @@ export class RecipeItemDto {
         example: 2,
         minimum: 1,
     })
-    @IsInt()
-    @Min(1)
+    @IsNumber({ maxDecimalPlaces: 3 })
+    @IsPositive()
     quantity!: number;
 }

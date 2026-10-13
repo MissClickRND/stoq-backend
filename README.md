@@ -49,7 +49,15 @@ Swagger AI: http://127.0.0.1:3006/docs. Прямой маршрут: **POST /ai*
 ```json
 {
   "sellerName": "ООО Молочный двор",
-  "items": [{ "name": "Молоко", "quantity": 2, "price": 612, "totalPrice": 1224, "unit": "шт" }]
+  "items": [
+    {
+      "name": "Молоко",
+      "quantity": 2,
+      "price": 612,
+      "totalPrice": 1224,
+      "unit": "шт"
+    }
+  ]
 }
 ```
 
@@ -61,9 +69,9 @@ AI только распознаёт документ. Каталог и пос�
 
 В топологии gateway, каталога, склада и заказов зарегистрированы:
 
-* `EXCHANGES.COMMANDS = app.commands`;
-* `ROUTING_KEYS.RECOGNIZE_UPD = command.ai.recognize_upd`, очередь `ai.commands`;
-* `ROUTING_KEYS.AI_HEALTH = command.ai.health`, очередь `ai.health`.
+- `EXCHANGES.COMMANDS = app.commands`;
+- `ROUTING_KEYS.RECOGNIZE_UPD = command.ai.recognize_upd`, очередь `ai.commands`;
+- `ROUTING_KEYS.AI_HEALTH = command.ai.health`, очередь `ai.health`.
 
 Пример с существующим CommandBusService:
 
@@ -73,7 +81,11 @@ const result = await commandBusService.sendCommand(
   EXCHANGES.COMMANDS,
   ROUTING_KEYS.RECOGNIZE_UPD,
   {
-    file: { originalname: file.originalname, mimetype: file.mimetype, base64: file.buffer.toString('base64') },
+    file: {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      base64: file.buffer.toString("base64"),
+    },
     deadlineAt: Date.now() + timeoutMs,
   },
   { timeoutMs },
@@ -122,3 +134,7 @@ docker compose -f compose.ai.yaml -p stoq-ai-integration stop rabbitmq
 `C:\Users\Lyaguh\Desktop\stoq-ml` — совместимая командная обёртка. Ее `npm run start:dev` запускает новый AI в самостоятельном HTTP-режиме без RabbitMQ. Основные исходники и `.env` теперь находятся в `backend/stoq-ai-service`; прежний checkout сохранен локально в `stoq-ml/legacy-source`.
 
 Если ваш frontend обращается к backend на другом компьютере (например, 26.130.106.197:3000), на том компьютере нужно запустить обновленный gateway и подключенный AI worker с общим брокером. Локальное изменение репозитория не обновляет удаленный процесс автоматически.
+
+## Поставки, склад, блюда и заказы
+
+Новые денежные поля поставок, цены партий, категории и складские показатели блюд, дата ISO и реквизиты заказов описаны в [docs/business-fields.md](docs/business-fields.md). Там же находятся порядок миграций, примеры POST и команды проверки.
