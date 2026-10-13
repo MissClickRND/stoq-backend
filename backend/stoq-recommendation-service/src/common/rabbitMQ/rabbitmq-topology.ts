@@ -52,6 +52,7 @@ export const ROUTING_KEYS = {
   UPDATE_QUANTITY_INVENTORY: 'command.inventory.update_quantity_inventory', // PUT /inventory
 
   GET_RECOMMENDATION: 'command.recommendation.get_recommendation', // GET /recommendation
+  GET_DEPENDENCY_GRAPH: 'command.recommendation.get_dependency_graph', // GET /analytics/graph
 
   AI_COMMANDS_MASK: 'command.ai.#',
   CATALOG_COMMANDS_MASK: 'command.catalog.#',

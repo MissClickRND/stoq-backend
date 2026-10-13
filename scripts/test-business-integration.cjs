@@ -37,7 +37,7 @@ async function main() {
   process.env.DATABASE_URL = url;
   process.env.RABBITMQ_URL = 'amqp://guest:guest@127.0.0.1:5678';
   process.env.AI_RPC_TIMEOUT_MS = '150000';
-  for (const name of ['stoq-catalog-service', 'stoq-inventory-service', 'stoq-order-service', 'stoq-gate']) {
+  for (const name of ['stoq-catalog-service', 'stoq-inventory-service', 'stoq-order-service', 'stoq-recommendation-service', 'stoq-gate']) {
     const { Test } = load(name, 'node_modules/@nestjs/testing');
     const { AppModule } = load(name, 'dist/app.module.js');
     let builder = Test.createTestingModule({ imports: [AppModule] });
@@ -95,7 +95,7 @@ async function main() {
   assert.equal(dish.recipeItems[0].stock, 15); assert.equal(dish.recipeItems[0].price, 106.666667);
   assert.deepEqual(await api('GET', '/dishes/' + dish.id), dish);
   assert.equal((await api('GET', '/dishes'))[0].availablePortions, 30);
-  const graph = await api('GET', '/analytics/dependencies');
+  const graph = await api('GET', '/analytics/graph');
   assert.deepEqual(graph.nodes.find(node => node.id === 'product:' + product.id), {
     id: 'product:' + product.id, type: 'ingredient', data: { name: product.name, quantity: 15, unit: 'кг', status: 'available' },
   });
@@ -130,11 +130,11 @@ async function main() {
   assert.equal(freshDish.recipeItems[0].stock, warehouse[1].Quantity);
   assert.equal(freshDish.recipeItems[0].price, warehouse[1].price);
   await inventory.batchBalance.update({ where: { batchId: warehouse[1].id }, data: { availableQuantity: 0.5 } });
-  const lowGraph = await api('GET', '/analytics/dependencies');
+  const lowGraph = await api('GET', '/analytics/graph');
   assert.equal(lowGraph.nodes.find(node => node.id === 'product:' + product.id).data.status, 'low_stock');
   assert.ok(lowGraph.edges.every(edge => edge.data.status === 'low_stock'));
   await inventory.batchBalance.update({ where: { batchId: warehouse[1].id }, data: { availableQuantity: 0 } });
-  const emptyGraph = await api('GET', '/analytics/dependencies');
+  const emptyGraph = await api('GET', '/analytics/graph');
   assert.equal(emptyGraph.nodes.find(node => node.id === 'product:' + product.id).data.status, 'out_of_stock');
   assert.ok(emptyGraph.edges.every(edge => edge.data.status === 'unavailable'));
   assert.equal(new Set(emptyGraph.nodes.map(node => node.id)).size, emptyGraph.nodes.length);

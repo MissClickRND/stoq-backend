@@ -1,28 +1,23 @@
-import { HttpException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadGatewayException, HttpException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { CommandBusService } from '../../common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from '../../common/rabbitMQ/rabbitmq-topology';
-import { buildDependencyGraph } from './dependency-graph.builder';
 
 @Injectable()
 export class DependencyGraphService {
-  private readonly lowStockPortions: number;
-  constructor(private readonly commandBusService: CommandBusService, config: ConfigService) {
-    this.lowStockPortions = Number(config.get('DEPENDENCY_GRAPH_LOW_STOCK_PORTIONS', 5));
-    if (!Number.isSafeInteger(this.lowStockPortions) || this.lowStockPortions < 1 || this.lowStockPortions > 10000) {
-      throw new Error('Некорректный порог DEPENDENCY_GRAPH_LOW_STOCK_PORTIONS');
-    }
-  }
+  constructor(private readonly commandBusService: CommandBusService) {}
   async getGraph() {
     let response: any;
     try {
-      response = await this.commandBusService.sendCommand(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_DISHES, { search: undefined });
+      response = await this.commandBusService.sendCommand(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_DEPENDENCY_GRAPH, {});
     } catch {
-      throw new ServiceUnavailableException('Каталог или склад недоступен. Повторите попытку');
+      throw new ServiceUnavailableException('Recommendation-service недоступен. Повторите попытку');
     }
     if (!response?.success) {
       throw new HttpException(response?.error?.message ?? 'Не удалось загрузить граф зависимостей', response?.error?.status ?? 502);
     }
-    return buildDependencyGraph(response.data, this.lowStockPortions);
+    if (!Array.isArray(response.data?.nodes) || !Array.isArray(response.data?.edges)) {
+      throw new BadGatewayException('Recommendation-service вернул некорректный граф');
+    }
+    return response.data;
   }
 }

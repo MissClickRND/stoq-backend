@@ -8,10 +8,20 @@ import {
   QUEUES,
 } from "src/common/rabbitMQ/rabbitmq-topology";
 import { RecommendationService } from "./recommendations.service";
+import { DependencyGraphService } from './dependency-graph/dependency-graph.service';
 
 @Injectable()
 export class RecommendationsRPCController {
-  constructor(private readonly recommendationService: RecommendationService) {}
+  constructor(private readonly recommendationService: RecommendationService, private readonly graphService: DependencyGraphService) {}
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_DEPENDENCY_GRAPH,
+    queue: QUEUES.RECOMMENDATION_COMMANDS,
+  })
+  getDependencyGraph() {
+    return executeRpc(() => this.graphService.getGraph());
+  }
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
