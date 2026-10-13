@@ -7,6 +7,6 @@ import { RecommendationsRPCController } from './recommendations-rpc.controller';
 @Module({
   imports: [CommandBusModule],
   providers: [RecommendationService, RecommendationsRPCController],
-  // controllers: [RecommendationsController],
+  controllers: [RecommendationsController],
 })
 export class RecommendationsModule {}
