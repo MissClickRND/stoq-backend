@@ -28,9 +28,16 @@ export class DishesService {
   async create(data: CreateDishDto) {
     const ids = data.recipeItems.map((item) => item.productId);
     if (new Set(ids).size !== ids.length || !ids.length)
-      throw new BadRequestException('Добавьте ингредиенты без повторяющихся продуктов');
-    const count = await this.prisma.product.count({ where: { id: { in: ids }, isDeleted: false } });
-    if (count !== ids.length) throw new BadRequestException('Один или несколько продуктов не существуют или удалены');
+      throw new BadRequestException(
+        "Добавьте ингредиенты без повторяющихся продуктов",
+      );
+    const count = await this.prisma.product.count({
+      where: { id: { in: ids }, isDeleted: false },
+    });
+    if (count !== ids.length)
+      throw new BadRequestException(
+        "Один или несколько продуктов не существуют или удалены",
+      );
     const stock = await this.fetchStock(ids);
     try {
       const dish = await this.prisma.dish.create({
@@ -40,9 +47,16 @@ export class DishesService {
           imageURL: data.imageURL?.trim(),
           salePrice: data.salePrice,
           category: data.category?.trim(),
-          recipeItems: { create: data.recipeItems.map((item) => ({ productId: item.productId, quantity: item.quantity })) },
+          recipeItems: {
+            create: data.recipeItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+            })),
+          },
         },
-        include: { recipeItems: { include: { product: { include: { unit: true } } } } },
+        include: {
+          recipeItems: { include: { product: { include: { unit: true } } } },
+        },
       });
       return (await this.enrichWithStock([dish], stock))[0];
     } catch (error) {
@@ -113,13 +127,26 @@ export class DishesService {
   }
 
   private async fetchStock(productIds: number[]): Promise<any[]> {
-    return productIds.length ? this.handleRpcResponse(await this.commandBusService.sendCommand(
-      EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY_STOCK, { productIds })) : [];
+    return productIds.length
+      ? this.handleRpcResponse(
+          await this.commandBusService.sendCommand(
+            EXCHANGES.COMMANDS,
+            ROUTING_KEYS.GET_INVENTORY_STOCK,
+            { productIds },
+          ),
+        )
+      : [];
   }
 
   private async enrichWithStock(dishes: any[], stockBatches?: any[]) {
-    const productIds = [...new Set<number>(dishes.flatMap((dish) => dish.recipeItems.map((item: any) => item.productId)))];
-    const batches = stockBatches ?? await this.fetchStock(productIds);
+    const productIds = [
+      ...new Set<number>(
+        dishes.flatMap((dish) =>
+          dish.recipeItems.map((item: any) => item.productId),
+        ),
+      ),
+    ];
+    const batches = stockBatches ?? (await this.fetchStock(productIds));
     const byProduct = new Map<number, any[]>();
     for (const batch of batches) {
       const entries = byProduct.get(batch.productId) ?? [];
@@ -129,19 +156,51 @@ export class DishesService {
     return dishes.map((dish) => {
       const recipeItems = dish.recipeItems.map((item: any) => {
         const rows = byProduct.get(item.productId) ?? [];
-        const stock = rows.reduce((sum, row) => sum + Number(row.availableQuantity), 0);
-        const price = stock > 0 && rows.every((row) => row.price != null)
-          ? Math.round(rows.reduce((sum, row) => sum + Number(row.price) * Number(row.availableQuantity), 0) / stock * 1e6) / 1e6 : null;
+        const stock = rows.reduce(
+          (sum, row) => sum + Number(row.availableQuantity),
+          0,
+        );
+        const price =
+          stock > 0 && rows.every((row) => row.price != null)
+            ? Math.round(
+                (rows.reduce(
+                  (sum, row) =>
+                    sum + Number(row.price) * Number(row.availableQuantity),
+                  0,
+                ) /
+                  stock) *
+                  1e6,
+              ) / 1e6
+            : null;
         const quantity = Number(item.quantity);
-        return { ...item, quantity, stock, price,
+        return {
+          ...item,
+          quantity,
+          stock,
+          price,
           portions: quantity > 0 ? Math.floor(stock / quantity + 1e-9) : 0,
-          expiresAt: rows.length ? rows.map((row) => row.expiresAt).sort()[0] : null };
+          expiresAt: rows.length
+            ? rows.map((row) => row.expiresAt).sort()[0]
+            : null,
+        };
       });
-      return { ...dish, category: dish.category ?? null,
-        salePrice: dish.salePrice == null ? null : Number(dish.salePrice), recipeItems,
-        availablePortions: recipeItems.length ? Math.min(...recipeItems.map((item) => item.portions)) : 0,
-        costPrice: recipeItems.some((item) => item.price == null) ? null :
-          Math.round(recipeItems.reduce((sum, item) => sum + item.quantity * item.price, 0) * 100) / 100 };
+      return {
+        ...dish,
+        category: dish.category ?? null,
+        salePrice: dish.salePrice == null ? null : Number(dish.salePrice),
+        recipeItems,
+        availablePortions: recipeItems.length
+          ? Math.min(...recipeItems.map((item) => item.portions))
+          : 0,
+        costPrice: recipeItems.some((item) => item.price == null)
+          ? null
+          : Math.round(
+              recipeItems.reduce(
+                (sum, item) => sum + item.quantity * item.price,
+                0,
+              ) * 100,
+            ) / 100,
+      };
     });
   }
 

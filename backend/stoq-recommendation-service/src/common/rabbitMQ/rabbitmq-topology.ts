@@ -4,6 +4,7 @@ export const EXCHANGES = {
 } as const;
 
 export const QUEUES = {
+  INVENTORY_STOCK: 'inventory.stock',
   AI_COMMANDS: 'ai.commands',
   AI_HEALTH: 'ai.health',
   ORDERS_COMMANDS: 'orders.commands',
@@ -13,6 +14,8 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  CHANGE_ORDER_STATUS: 'command.order.change_status',
+  GET_INVENTORY_STOCK: 'command.inventory.get_stock',
   RECOGNIZE_UPD: 'command.ai.recognize_upd',
   AI_HEALTH: 'command.ai.health',
 
@@ -52,6 +55,7 @@ export const ROUTING_KEYS = {
   UPDATE_QUANTITY_INVENTORY: 'command.inventory.update_quantity_inventory', // PUT /inventory
 
   GET_RECOMMENDATION: 'command.recommendation.get_recommendation', // GET /recommendation
+  GET_DISH_RECOMMENDATION: 'command.recommendation.get_dish_recommendation', // POST /recommendation/dishes
 
   AI_COMMANDS_MASK: 'command.ai.#',
   CATALOG_COMMANDS_MASK: 'command.catalog.#',

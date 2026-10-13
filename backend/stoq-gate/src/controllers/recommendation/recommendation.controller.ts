@@ -1,4 +1,11 @@
-import { Controller, Get, HttpException, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiOkResponse,
   ApiOperation,
@@ -7,6 +14,7 @@ import {
 } from '@nestjs/swagger';
 import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
+import { DishRecommendationsDto } from './dto/dish-recommendations.dto';
 
 @ApiTags('Recommendations')
 @Controller('recommendations')
@@ -33,6 +41,17 @@ export class RecommendationsController {
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_RECOMMENDATION,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Post('dishes')
+  async getDishRecommendations(@Body() dto: DishRecommendationsDto) {
+    const payload = { dto: dto };
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.GET_DISH_RECOMMENDATION,
       payload,
     );
     return this.handleRpcResponse(response);
