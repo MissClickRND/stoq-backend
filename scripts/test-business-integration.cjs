@@ -95,6 +95,13 @@ async function main() {
   assert.equal(dish.recipeItems[0].stock, 15); assert.equal(dish.recipeItems[0].price, 106.666667);
   assert.deepEqual(await api('GET', '/dishes/' + dish.id), dish);
   assert.equal((await api('GET', '/dishes'))[0].availablePortions, 30);
+  const graph = await api('GET', '/analytics/dependencies');
+  assert.deepEqual(graph.nodes.find(node => node.id === 'product:' + product.id), {
+    id: 'product:' + product.id, type: 'ingredient', data: { name: product.name, quantity: 15, unit: 'кг', status: 'available' },
+  });
+  assert.equal(graph.edges[0].id, 'recipe:' + dish.recipeItems[0].id);
+  assert.equal(graph.edges[0].data.required, 0.5);
+  assert.equal(graph.edges[0].data.status, 'available');
   const metadata = { date: '2026-10-13T12:30:00.000Z', type: 'dine-in', table: 3, guests: 4 };
   const order = await api('POST', '/orders', { ...metadata, items: [{ dishId: dish.id, quantity: 2 }] });
   assert.equal(order.totalPrice, 600);
@@ -122,6 +129,17 @@ async function main() {
   const freshDish = await api('GET', '/dishes/' + dish.id);
   assert.equal(freshDish.recipeItems[0].stock, warehouse[1].Quantity);
   assert.equal(freshDish.recipeItems[0].price, warehouse[1].price);
+  await inventory.batchBalance.update({ where: { batchId: warehouse[1].id }, data: { availableQuantity: 0.5 } });
+  const lowGraph = await api('GET', '/analytics/dependencies');
+  assert.equal(lowGraph.nodes.find(node => node.id === 'product:' + product.id).data.status, 'low_stock');
+  assert.ok(lowGraph.edges.every(edge => edge.data.status === 'low_stock'));
+  await inventory.batchBalance.update({ where: { batchId: warehouse[1].id }, data: { availableQuantity: 0 } });
+  const emptyGraph = await api('GET', '/analytics/dependencies');
+  assert.equal(emptyGraph.nodes.find(node => node.id === 'product:' + product.id).data.status, 'out_of_stock');
+  assert.ok(emptyGraph.edges.every(edge => edge.data.status === 'unavailable'));
+  assert.equal(new Set(emptyGraph.nodes.map(node => node.id)).size, emptyGraph.nodes.length);
+  assert.ok(emptyGraph.edges.every(edge => emptyGraph.nodes.some(node => node.id === edge.source)
+    && emptyGraph.nodes.some(node => node.id === edge.target)));
   console.log('HTTP → real RabbitMQ → real PostgreSQL passed: supply/inventory/dishes/orders, immutable order prices, fractional totals, adding positions, legacy null prices, ISO dates and completion.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {

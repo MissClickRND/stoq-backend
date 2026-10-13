@@ -9,6 +9,8 @@ import { CommandBusModule } from './common/rabbitMQ/command-bus.module';
 import { OrderController } from './controllers/order/order.controller';
 import { AiModule } from './controllers/ai/ai.module';
 import { RecommendationsController } from './controllers/recommendation/recommendation.controller';
+import { DependencyGraphController } from './controllers/analytics/dependency-graph.controller';
+import { DependencyGraphService } from './controllers/analytics/dependency-graph.service';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { RecommendationsController } from './controllers/recommendation/recommen
     InventoryController,
     OrderController,
     RecommendationsController,
+    DependencyGraphController,
   ],
+  providers: [DependencyGraphService],
 })
 export class AppModule {}
