@@ -1,0 +1,54 @@
+{
+  "name": "ai-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NestJS service for extracting Russian UPD product rows with OpenRouter Vision",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "typecheck": "tsc --noEmit",
+    "diagnose:openrouter": "npm run build && node scripts/check-openrouter.cjs",
+    "test": "jest --runInBand",
+    "test:smoke": "npm run build && node test/smoke.cjs",
+    "test:cov": "jest --runInBand --coverage"
+  },
+  "dependencies": {
+    "@golevelup/nestjs-rabbitmq": "^9.1.0",
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "@nestjs/swagger": "^11.4.7",
+    "amqplib": "^2.2.0",
+    "multer": "^2.0.2",
+    "openai": "^7.32.0",
+    "pdf-lib": "^1.17.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "sharp": "^0.35.5",
+    "undici": "^8.11.2",
+    "zod": "^4.6.7"
+  },
+  "overrides": {
+    "@nestjs/swagger": {
+      "js-yaml": "5.4.3"
+    }
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.1.0",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.0.0",
+    "supertest": "^7.1.0",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,23 +1,23 @@
-import { Transform } from "class-transformer";
-import { IsNotEmpty, IsString, MaxLength } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
+import { OrderItemDto } from './order-item.dto';
 
 export class CreateOrderDto {
-    @ApiProperty({
-        description: "Название блюда",
-        example: "Омлет",
-        maxLength: 100,
-    })
-    @IsString()
-    @IsNotEmpty()
-    @MaxLength(100)
-    @Transform(({ value }) => {
-        if (typeof value === "string") {
-            const trimmed = value.trim();
-            if (trimmed.length === 0) return trimmed;
-            return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-        }
-        return value;
-    })
-    name!: string;
+  @ApiPropertyOptional({
+    description: 'Блюда и их количество для добавления в заказ',
+    type: [OrderItemDto],
+    minItems: 1,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items?: OrderItemDto[];
 }

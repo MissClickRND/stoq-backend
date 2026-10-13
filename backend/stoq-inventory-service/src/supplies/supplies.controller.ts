@@ -17,7 +17,7 @@ import {
   ApiParam,
   ApiTags,
 } from "@nestjs/swagger";
-import { CreateSupplyDto } from "./dto/create-supply.dto";
+import { CreateSupplyDto } from "./dto/requests/create-supply.dto";
 import { SupplyService } from "./supplies.service";
 
 @ApiTags("Поставки")

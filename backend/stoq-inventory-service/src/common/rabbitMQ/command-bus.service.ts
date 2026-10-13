@@ -5,12 +5,13 @@ import { Injectable } from '@nestjs/common';
 export class CommandBusService {
   constructor(private readonly amqpConnection: AmqpConnection) {}
 
-  public async sendCommand(exchange: string, routingKey: string, payload: any) {
+  public async sendCommand(exchange: string, routingKey: string, payload: any, options?: { timeoutMs?: number }) {
     return this.amqpConnection.request({
       exchange,
       routingKey,
       payload,
-      timeout: 5000,
+      timeout: options?.timeoutMs ?? 5000,
+      expiration: options?.timeoutMs === undefined ? undefined : String(options.timeoutMs),
     });
   }
 }

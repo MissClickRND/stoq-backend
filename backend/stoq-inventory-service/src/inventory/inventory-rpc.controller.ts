@@ -1,6 +1,10 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
-import { EXCHANGES, ROUTING_KEYS, QUEUES } from "../common/rabbitMQ/rabbitmq-topology";
+import {
+  EXCHANGES,
+  ROUTING_KEYS,
+  QUEUES,
+} from "../common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "../common/utils/rpc-handler";
 import { InventoryService } from "./inventory.service";
 import { UpdateQuantityDto } from "./dto/request/update-quantity.dto";
@@ -14,8 +18,8 @@ export class InventoryRPCController {
     routingKey: ROUTING_KEYS.GET_INVENTORY,
     queue: QUEUES.INVENTORY_COMMANDS,
   })
-  async findAll() {
-    return executeRpc(() => this.inventoryService.findAll());
+  async findAll(payload: { search?: string }) {
+    return executeRpc(() => this.inventoryService.findAll(payload.search));
   }
 
   @RabbitRPC({

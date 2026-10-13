@@ -5,6 +5,6 @@ import { OrdersRPCController } from "./orders-rpc.controller";
 
 @Module({
   providers: [OrdersService, OrdersRPCController],
-  controllers: [OrdersController],
+  // controllers: [OrdersController],
 })
 export class OrdersModule {}
