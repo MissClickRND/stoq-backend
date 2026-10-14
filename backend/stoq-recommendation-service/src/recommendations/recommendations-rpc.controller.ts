@@ -8,14 +8,15 @@ import {
   QUEUES,
 } from "src/common/rabbitMQ/rabbitmq-topology";
 import { RecommendationProjectionService } from "./recommendation-projection.service";
-import { DishRecommendationsDto } from "./dto/dish-recommendations.dto";
 import { DependencyGraphService } from "./dependency-graph/dependency-graph.service";
+import { RecommendationService } from "./recommendations.service";
 
 @Injectable()
 export class RecommendationsRPCController {
   constructor(
     private readonly projectionService: RecommendationProjectionService,
     private readonly graphService: DependencyGraphService,
+    private readonly recommendationService: RecommendationService,
   ) {}
 
   @RabbitRPC({
@@ -43,9 +44,9 @@ export class RecommendationsRPCController {
     routingKey: ROUTING_KEYS.GET_DISH_RECOMMENDATION,
     queue: QUEUES.RECOMMENDATION_COMMANDS,
   })
-  getDishRecommendations(payload: { search?: string }) {
-    return executeRpc(async () =>
-      this.projectionService.getStopList(payload.search),
+  getDishRecommendations() {
+    return executeRpc(() =>
+      this.recommendationService.getDishRecommendationsFromServices(),
     );
   }
 }

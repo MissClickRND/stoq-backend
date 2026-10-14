@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from "@nestjs/common";
+import { Controller, Get, Query } from "@nestjs/common";
 import {
   ApiOkResponse,
   ApiOperation,
@@ -6,7 +6,6 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { RecommendationService } from "./recommendations.service";
-import { DishRecommendationsDto } from "./dto/dish-recommendations.dto";
 
 @ApiTags("Recommendations")
 @Controller("recommendations")
@@ -26,17 +25,10 @@ export class RecommendationsController {
     return this.recommendationService.getStopListFromServices(search);
   }
 
-  @Post("dishes")
-  getDishRecommendations(@Body() dto: DishRecommendationsDto) {
-    return this.recommendationService.calculateDishRecommendations(
-      dto.dishes.map((dish) => ({
-        ...dish,
-        recipeItems: dish.recipeItems.map((item) => ({
-          ...item,
-          productName: item.productName ?? `Продукт ${item.productId}`,
-        })),
-      })),
-      dto.batches,
-    );
+  @ApiOperation({ summary: "Получить приоритетные блюда для приготовления" })
+  @ApiOkResponse({ description: "Рекомендации по приготовлению блюд" })
+  @Get("dishes")
+  getDishRecommendations() {
+    return this.recommendationService.getDishRecommendationsFromServices();
   }
 }

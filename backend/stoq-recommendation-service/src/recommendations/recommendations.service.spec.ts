@@ -209,4 +209,52 @@ describe("RecommendationService", () => {
       }),
     ]);
   });
+
+  it("строит рекомендации из текущих данных Catalog и Inventory", async () => {
+    const commandBus = {
+      sendCommand: jest
+        .fn()
+        .mockResolvedValueOnce({
+          success: true,
+          data: [
+            {
+              id: 7,
+              name: "Крем-суп",
+              salePrice: 300,
+              recipeItems: [
+                {
+                  productId: 20,
+                  quantity: 2,
+                  product: { name: "Сливки" },
+                },
+              ],
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          data: [
+            {
+              productId: 20,
+              availableQuantity: 6,
+              price: 25,
+              expiresAt: "2099-01-01T00:00:00.000Z",
+              status: "ACTIVE",
+            },
+          ],
+        }),
+    } as unknown as CommandBusService;
+    service = new RecommendationService(commandBus);
+
+    await expect(service.getDishRecommendationsFromServices()).resolves.toEqual(
+      [
+        expect.objectContaining({
+          dishId: 7,
+          costPrice: 50,
+          profit: 250,
+          maxPortions: 3,
+        }),
+      ],
+    );
+  });
 });

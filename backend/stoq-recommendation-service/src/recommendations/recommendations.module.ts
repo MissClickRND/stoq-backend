@@ -5,9 +5,11 @@ import { RecommendationProjectionService } from "./recommendation-projection.ser
 import { RecommendationsRPCController } from "./recommendations-rpc.controller";
 import { DependencyGraphService } from "./dependency-graph/dependency-graph.service";
 import { CommandBusModule } from "../common/rabbitMQ/command-bus.module";
+import { RecommendationsController } from "./recommendations.controller";
 
 @Module({
   imports: [ScheduleModule.forRoot(), CommandBusModule],
+  controllers: [RecommendationsController],
   providers: [
     RecommendationService,
     RecommendationProjectionService,

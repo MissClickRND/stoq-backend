@@ -7,7 +7,7 @@ import { CommandBusModule } from "src/common/rabbitMQ/command-bus.module";
 
 @Module({
   imports: [RecommendationsModule, CommandBusModule],
+  controllers: [StatisticsController],
   providers: [StatisticsService, StatisticsRPCController],
-  // controllers: [StatisticsController]
 })
 export class StatisticsModule {}

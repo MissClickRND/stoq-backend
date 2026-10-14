@@ -57,7 +57,7 @@ export const ROUTING_KEYS = {
   GET_INVENTORY_STOCK: 'command.inventory.get_stock', // Для остатков
 
   GET_RECOMMENDATION: 'command.recommendation.get_recommendation', // GET /recommendation
-  GET_DISH_RECOMMENDATION: 'command.recommendation.get_dish_recommendation', // POST /recommendation/dishes
+  GET_DISH_RECOMMENDATION: 'command.recommendation.get_dish_recommendation', // GET /recommendations/dishes
 
   GET_DISH_STATISTICS: 'command.recommendation.get_dish_statistics', // GET /statistics/dishes
 

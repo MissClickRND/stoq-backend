@@ -92,6 +92,69 @@ export class RecommendationService {
         }
     }
 
+    async getDishRecommendationsFromServices(): Promise<DishSuggestion[]> {
+        try {
+            const [catalogResponse, inventoryResponse] = await Promise.all([
+                this.commandBusService.sendCommand<RpcResponse<CatalogDish[]>>(
+                    EXCHANGES.COMMANDS,
+                    ROUTING_KEYS.GET_DISHES,
+                    {},
+                ),
+                this.commandBusService.sendCommand<
+                    RpcResponse<InventoryBatch[]>
+                >(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY, {}),
+            ]);
+
+            if (!catalogResponse.success || !inventoryResponse.success) {
+                throw new Error("Catalog or Inventory returned an RPC error");
+            }
+
+            const dishes: DishData[] = catalogResponse.data.map((dish) => ({
+                id: dish.id,
+                name: dish.name,
+                salePrice: dish.salePrice,
+                recipeItems: dish.recipeItems.map((item) => ({
+                    productId: item.productId,
+                    productName:
+                        item.product?.name?.trim() ||
+                        `Продукт ${item.productId}`,
+                    quantityPerPortion: item.quantity,
+                })),
+            }));
+
+            const batches: RecommendationBatch[] = inventoryResponse.data
+                .filter(
+                    (batch) =>
+                        Number.isFinite(batch.productId) &&
+                        Number.isFinite(batch.availableQuantity) &&
+                        Number.isFinite(Date.parse(batch.expiresAt)),
+                )
+                .map((batch) => ({
+                    productId: batch.productId,
+                    availableQuantity: Number(batch.availableQuantity),
+                    price:
+                        typeof batch.price === "number" &&
+                        Number.isFinite(batch.price)
+                            ? batch.price
+                            : null,
+                    expiresAt: new Date(batch.expiresAt),
+                    status:
+                        batch.status === "ACTIVE" ||
+                        batch.status === "DEPLETED" ||
+                        batch.status === "EXPIRED" ||
+                        batch.status === "QUARANTINED"
+                            ? batch.status
+                            : "DEPLETED",
+                }));
+
+            return this.calculateDishRecommendations(dishes, batches);
+        } catch {
+            throw new ServiceUnavailableException(
+                "Не удалось получить данные из Catalog или Inventory через RabbitMQ",
+            );
+        }
+    }
+
     calculateRecommendations(
         dishes: DishData[],
         stocks: ProductStock[],
@@ -421,5 +484,8 @@ interface CatalogDish {
 interface InventoryBatch {
     productId: number;
     expiresAt: string;
-    balance: { availableQuantity: number } | null;
+    availableQuantity?: number;
+    price?: number | null;
+    status?: string;
+    balance?: { availableQuantity: number } | null;
 }
