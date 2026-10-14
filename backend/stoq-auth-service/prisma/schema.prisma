@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  WAITER
+  STOREKEEPER
+  WAIT_CONFIRM
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  fullName           String
+  email              String   @unique
+  passwordHash       String
+  hashedRefreshToken String?
+  tokenVersion       Int      @default(0)
+  role               Role     
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Restaurant {
+  id          Int      @id @default(autoincrement())
+  name        String
+  address     String
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
