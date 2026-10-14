@@ -103,7 +103,6 @@ export class AuthService {
             data: {
                 name: dto.restaurantName,
                 address: dto.restaurantAddress ?? "",
-                email,
             },
         });
 
