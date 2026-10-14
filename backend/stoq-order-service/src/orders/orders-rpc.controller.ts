@@ -34,6 +34,15 @@ export class OrdersRPCController {
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_ORDERS_TODAY_STATISTICS,
+    queue: QUEUES.ORDERS_COMMANDS,
+  })
+  getTodayStatistics() {
+    return executeRpc(() => this.ordersService.getTodayStatistics());
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.GET_ORDER_BY_ID,
     queue: QUEUES.ORDERS_COMMANDS,
   })
@@ -64,8 +73,11 @@ export class OrdersRPCController {
     return executeRpc(() => this.ordersService.remove(payload.id));
   }
 
-  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.CHANGE_ORDER_STATUS,
-    queue: QUEUES.ORDERS_COMMANDS })
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.CHANGE_ORDER_STATUS,
+    queue: QUEUES.ORDERS_COMMANDS,
+  })
   changeStatus(payload: { id: number; status: 'completed' }) {
     return executeRpc(() => this.ordersService.changeStatus(payload));
   }

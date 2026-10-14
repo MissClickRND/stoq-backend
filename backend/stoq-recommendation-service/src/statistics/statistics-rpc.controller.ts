@@ -20,4 +20,13 @@ export class StatisticsRPCController {
   getDishesStatistics() {
     return executeRpc(() => this.statisticsService.getDishesStatistics());
   }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_ORDER_STATISTICS_TODAY,
+    queue: QUEUES.RECOMMENDATION_COMMANDS,
+  })
+  getOrdersTodayStatistics() {
+    return executeRpc(() => this.statisticsService.getOrdersTodayStatistics());
+  }
 }

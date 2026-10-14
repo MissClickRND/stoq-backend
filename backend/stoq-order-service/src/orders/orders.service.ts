@@ -215,4 +215,68 @@ export class OrdersService {
 
     return { message: `Заказ ${id} успешно удалён` };
   }
+
+  async getTodayStatistics() {
+    const now = new Date();
+
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const startOfTomorrow = new Date(startOfDay);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        created_at: {
+          gte: startOfDay,
+          lt: startOfTomorrow,
+        },
+      },
+      select: {
+        status: true,
+        items: {
+          select: {
+            price: true,
+            quantity: true,
+          },
+        },
+      },
+    });
+
+    const activeStatuses: OrderStatus[] = [
+      OrderStatus.created,
+      OrderStatus.pending_reservation,
+      OrderStatus.confirmed,
+    ];
+
+    const completedOrders = orders.filter(
+      (order) => order.status === OrderStatus.completed,
+    );
+
+    const active = orders.filter(
+      (order) => activeStatuses.includes(order.status),
+    ).length;
+
+    const revenue = completedOrders.reduce((total, order) => {
+      const orderTotal = order.items.reduce((sum, item) => {
+        if (item.price === null) {
+          return sum.add((item.price ?? new Prisma.Decimal(0)).mul(item.quantity));
+        }
+
+        return sum.add(item.price.mul(item.quantity));
+      }, new Prisma.Decimal(0));
+
+    return total.add(orderTotal);
+    }, new Prisma.Decimal(0));
+
+    const cancelled = orders.filter(o => o.status === OrderStatus.cancelled).length;
+
+    return {
+      total: orders.length,
+      completed: completedOrders.length,
+      cancelled,
+      revenue: revenue.toDecimalPlaces(2).toString(),
+      active,
+    };
+  }
 }

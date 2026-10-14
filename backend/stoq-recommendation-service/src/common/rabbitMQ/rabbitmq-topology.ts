@@ -47,6 +47,7 @@ export const ROUTING_KEYS = {
   GET_ORDER: "command.order.get_order", // GET /orders
   GET_ORDER_BY_ID: "command.order.get_order_by_id", // GET /orders/:id
   DEL_ORDER_BY_ID: "command.order.del_order_by_id", // DEL /orders/:id
+  GET_ORDERS_TODAY_STATISTICS: "command.order.get_today_statistics", // Internal order statistics query
 
   CREATE_SUPPLY: "command.inventory.create_supply", // POST /supplies
   GET_SUPPLY: "command.inventory.get_supply", // GET /supplies
@@ -62,6 +63,8 @@ export const ROUTING_KEYS = {
   GET_DISH_RECOMMENDATION: "command.recommendation.get_dish_recommendation", // POST /recommendation/dishes
 
   GET_DISH_STATISTICS: "command.recommendation.get_dish_statistics", // GET /statistics/dishes
+  GET_ORDER_STATISTICS_TODAY:
+    "command.recommendation.get_order_statistics_today", // GET /statistics/orders/today
 
   GET_DEPENDENCY_GRAPH: "command.recommendation.get_dependency_graph", // GET /analytics/graph
 

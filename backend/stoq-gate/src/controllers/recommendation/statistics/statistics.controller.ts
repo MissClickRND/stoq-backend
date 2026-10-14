@@ -27,4 +27,16 @@ export class StatisticsController {
     );
     return this.handleRpcResponse(response);
   }
+
+  @ApiOperation({ summary: 'Получить статистику заказов за сегодня' })
+  @ApiOkResponse({ description: 'Статистика заказов за сегодня' })
+  @Get('orders/today')
+  async getOrdersTodayStatistics() {
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.GET_ORDER_STATISTICS_TODAY,
+      {},
+    );
+    return this.handleRpcResponse(response);
+  }
 }
