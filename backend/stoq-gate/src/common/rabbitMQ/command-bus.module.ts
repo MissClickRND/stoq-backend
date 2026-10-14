@@ -2,7 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { CommandBusService } from './command-bus.service';
-import { EXCHANGES } from 'src/common/rabbitMQ/rabbitmq-topology';
+import {
+  EXCHANGES,
+  QUEUES,
+  ROUTING_KEYS,
+} from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @Module({
   imports: [
@@ -15,6 +19,9 @@ import { EXCHANGES } from 'src/common/rabbitMQ/rabbitmq-topology';
           'amqp://admin:admin@localhost:5672',
         ),
         connectionInitOptions: { wait: true },
+
+        enableControllerDiscovery: true,
+
         exchanges: [
           {
             name: EXCHANGES.COMMANDS,
@@ -22,7 +29,23 @@ import { EXCHANGES } from 'src/common/rabbitMQ/rabbitmq-topology';
             createExchangeIfNotExists: true,
             durable: true,
           },
+          {
+            name: EXCHANGES.EVENTS,
+            type: 'topic',
+            createExchangeIfNotExists: true,
+            durable: true,
+          },
         ],
+        queues: [
+          {
+            name: QUEUES.RECOMMENDATION_EVENTS,
+            exchange: EXCHANGES.EVENTS,
+            routingKey: ROUTING_KEYS.ORDER_CREATED,
+            createQueueIfNotExists: true,
+            durable: true,
+          },
+        ],
+
         errorHandler: (channel, message, error) => {
           console.error('RabbitMQ processing error:', error.message);
           channel.nack(message, false, false);

@@ -106,8 +106,8 @@ export class AiRpcController {
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
-    routingKey: ROUTING_KEYS.AI_RECOGNIZE_UPD,
-    queue: QUEUES.AI_COMMANDS,
+    routingKey: ROUTING_KEYS.AI_HEALTH,
+    queue: QUEUES.AI_HEALTH,
     queueOptions: { durable: true },
   })
   async health(): Promise<unknown> {

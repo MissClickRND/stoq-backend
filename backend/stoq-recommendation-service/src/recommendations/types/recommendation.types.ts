@@ -1,5 +1,32 @@
-export type DishStatus = "AVAILABLE" | "LOW_STOCK" | "STOP_LIST";
 import { StopListReason } from "@prisma/client";
+
+export interface RpcResponse<T> {
+  success: boolean;
+  data: T;
+}
+
+export interface RawCatalogDish {
+  id: number;
+  name: string;
+  salePrice: number | null;
+  recipeItems: Array<{
+    productId: number;
+    quantity: number;
+    product?: { name?: string };
+  }>;
+}
+
+export interface RawInventoryBatch {
+  productId: number;
+  expiresAt: string;
+  availableQuantity?: number;
+  price?: number | null;
+  status?: string;
+  balance?: { availableQuantity: number } | null;
+}
+
+export type DishStatus = "AVAILABLE" | "LOW_STOCK" | "STOP_LIST";
+export type BatchStatus = "ACTIVE" | "DEPLETED" | "EXPIRED" | "QUARANTINED";
 
 export interface RecipeIngredient {
   productId: number;
@@ -20,6 +47,19 @@ export interface ProductStock {
   expiredQuantity: number;
 }
 
+export interface RecommendationBatch {
+  productId: number;
+  availableQuantity: number;
+  price: number | null;
+  expiresAt: Date;
+  status: BatchStatus;
+}
+
+export interface RecommendationReason {
+  status: StopListReason;
+  name: string;
+}
+
 export interface DishRecommendation {
   dishId: number;
   dishName: string;
@@ -28,19 +68,6 @@ export interface DishRecommendation {
   maxPortions: number;
   priority: number;
   reasons: RecommendationReason[];
-}
-
-export interface RecommendationReason {
-  status: StopListReason;
-  name: string;
-}
-
-export interface RecommendationBatch {
-  productId: number;
-  availableQuantity: number;
-  price: number | null;
-  expiresAt: Date;
-  status: "ACTIVE" | "DEPLETED" | "EXPIRED" | "QUARANTINED";
 }
 
 export interface DishSuggestion {
@@ -52,4 +79,66 @@ export interface DishSuggestion {
   maxPortions: number;
   expiringProducts: string[];
   recommendationScore: number;
+}
+
+export function mapRawCatalogToDishes(rawDishes: RawCatalogDish[]): DishData[] {
+  return rawDishes.map((dish) => ({
+    id: dish.id,
+    name: dish.name,
+    salePrice: dish.salePrice,
+    recipeItems: dish.recipeItems.map((item) => ({
+      productId: item.productId,
+      productName: item.product?.name?.trim() || `Продукт ${item.productId}`,
+      quantityPerPortion: item.quantity,
+    })),
+  }));
+}
+
+export function mapRawInventoryToStocks(rawBatches: RawInventoryBatch[]): ProductStock[] {
+  const stocksByProduct = new Map<number, ProductStock>();
+  const now = Date.now();
+
+  for (const batch of rawBatches) {
+    const stock = stocksByProduct.get(batch.productId) ?? {
+      productId: batch.productId,
+      availableQuantity: 0,
+      expiredQuantity: 0,
+    };
+
+    const quantity = batch.balance?.availableQuantity;
+    const expiresAt = Date.parse(batch.expiresAt);
+
+    if (typeof quantity !== "number" || Number.isNaN(expiresAt)) {
+      continue;
+    }
+
+    if (expiresAt <= now) {
+      stock.expiredQuantity += quantity;
+    } else {
+      stock.availableQuantity += quantity;
+    }
+
+    stocksByProduct.set(batch.productId, stock);
+  }
+
+  return Array.from(stocksByProduct.values());
+}
+
+
+export function mapRawInventoryToBatches(rawBatches: RawInventoryBatch[]): RecommendationBatch[] {
+  const validStatuses: BatchStatus[] = ["ACTIVE", "DEPLETED", "EXPIRED", "QUARANTINED"];
+
+  return rawBatches
+    .filter((batch) => batch.productId && batch.availableQuantity != null && batch.expiresAt)
+    .map((batch) => {
+      const rawStatus = batch.status as BatchStatus;
+      
+      return {
+        productId: batch.productId,
+        availableQuantity: Number(batch.availableQuantity),
+        price: typeof batch.price === "number" ? batch.price : null,
+        expiresAt: new Date(batch.expiresAt),
+        status: validStatuses.includes(rawStatus) ? rawStatus : "DEPLETED",
+      };
+    });
 }

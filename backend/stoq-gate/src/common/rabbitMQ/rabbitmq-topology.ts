@@ -10,6 +10,9 @@ export const QUEUES = {
   CATALOG_COMMANDS: 'catalog.commands',
   INVENTORY_COMMANDS: 'inventory.commands',
   RECOMMENDATION_COMMANDS: 'recommendation.commands',
+
+  GATEWAY_EVENTS: 'gateway.events',
+  RECOMMENDATION_EVENTS: 'recommendation.events',
 } as const;
 
 export const ROUTING_KEYS = {
@@ -23,6 +26,8 @@ export const ROUTING_KEYS = {
   GET_PRODUCT: 'command.catalog.get_product', // GET /product
   GET_PRODUCT_BY_ID: 'command.catalog.get_product_by_id', // GET /product/:id
   DEL_PRODUCT_BY_ID: 'command.catalog.del_product_by_id', // DEL /product/:id
+  
+  RESOLVE_UPD_PRODUCTS: 'command.catalog.resolve_upd_products',
 
   GET_UNIT: 'command.catalog.get_unit', // GET /units/
   GET_UNIT_BY_ID: 'command.catalog.get_unit_by_id', // GET /units/:id
@@ -56,7 +61,7 @@ export const ROUTING_KEYS = {
 
   GET_INVENTORY_STOCK: 'command.inventory.get_stock', // Для остатков
 
-  GET_RECOMMENDATION: 'command.recommendation.get_recommendation', // GET /recommendation
+  GET_RECOMMENDATION: 'command.recommendation.get_stop_list', // GET /recommendation
   GET_DISH_RECOMMENDATION: 'command.recommendation.get_dish_recommendation', // GET /recommendations/dishes
 
   GET_DISH_STATISTICS: 'command.recommendation.get_dish_statistics', // GET /statistics/dishes
@@ -64,6 +69,9 @@ export const ROUTING_KEYS = {
     'command.recommendation.get_order_statistics_today', // GET /statistics/orders/today
 
   GET_DEPENDENCY_GRAPH: 'command.recommendation.get_dependency_graph', // GET /analytics/graph
+
+  ORDER_CREATED: 'order.created',
+  STOP_LIST_UPDATED: 'recommendation.stop_list.updated',
 
   AI_COMMANDS_MASK: 'command.ai.#',
   CATALOG_COMMANDS_MASK: 'command.catalog.#',

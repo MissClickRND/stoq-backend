@@ -13,45 +13,76 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderItemDto } from './dto/order-item.dto';
 import { CommandBusService } from '../common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from '../common/rabbitMQ/rabbitmq-topology';
+import { OrderEventPublisher } from './order-event.publisher';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService, private readonly commandBusService: CommandBusService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly commandBusService: CommandBusService,
+    private readonly eventPublisher: OrderEventPublisher,
+  ) {}
 
   private async priceItems(items: OrderItemDto[]) {
-    return Promise.all(items.map(async item => {
-      if (!Number.isSafeInteger(item.dishId) || item.dishId < 1 ||
-        !Number.isSafeInteger(item.quantity) || item.quantity < 1) {
-        throw new BadRequestException('Выберите блюдо и положительное целое количество');
-      }
-      let response: any;
-      try {
-        response = await this.commandBusService.sendCommand(EXCHANGES.COMMANDS,
-          ROUTING_KEYS.GET_DISHES_BY_ID, { id: item.dishId });
-      } catch {
-        throw new ServiceUnavailableException('Каталог блюд недоступен. Повторите попытку');
-      }
-      if (!response?.success) {
-        throw new HttpException(response?.error?.message ?? 'Каталог блюд недоступен', response?.error?.status ?? 502);
-      }
-      const dish = response.data;
-      if (dish?.id !== item.dishId || typeof dish.name !== 'string' || !dish.name.trim() ||
-        typeof dish.salePrice !== 'number' || !Number.isFinite(dish.salePrice) || dish.salePrice < 0) {
-        throw new BadRequestException(`Для блюда #${item.dishId} не указана корректная цена продажи`);
-      }
-      return { dishId: item.dishId, quantity: item.quantity, name: dish.name,
-        imageURL: typeof dish.imageURL === 'string' ? dish.imageURL : null,
-        price: new Prisma.Decimal(dish.salePrice).toDecimalPlaces(2) };
-    }));
+    return Promise.all(
+      items.map(async (item) => {
+        if (
+          !Number.isSafeInteger(item.dishId) ||
+          item.dishId < 1 ||
+          !Number.isSafeInteger(item.quantity) ||
+          item.quantity < 1
+        ) {
+          throw new BadRequestException(
+            'Выберите блюдо и положительное целое количество',
+          );
+        }
+        let response: any;
+        try {
+          response = await this.commandBusService.sendCommand(
+            EXCHANGES.COMMANDS,
+            ROUTING_KEYS.GET_DISHES_BY_ID,
+            { id: item.dishId },
+          );
+        } catch {
+          throw new ServiceUnavailableException(
+            'Каталог блюд недоступен. Повторите попытку',
+          );
+        }
+        if (!response?.success) {
+          throw new HttpException(
+            response?.error?.message ?? 'Каталог блюд недоступен',
+            response?.error?.status ?? 502,
+          );
+        }
+        const dish = response.data;
+        if (
+          dish?.id !== item.dishId ||
+          typeof dish.name !== 'string' ||
+          !dish.name.trim() ||
+          typeof dish.salePrice !== 'number' ||
+          !Number.isFinite(dish.salePrice) ||
+          dish.salePrice < 0
+        ) {
+          throw new BadRequestException(
+            `Для блюда #${item.dishId} не указана корректная цена продажи`,
+          );
+        }
+        return {
+          dishId: item.dishId,
+          quantity: item.quantity,
+          name: dish.name,
+          imageURL: typeof dish.imageURL === 'string' ? dish.imageURL : null,
+          price: new Prisma.Decimal(dish.salePrice).toDecimalPlaces(2),
+        };
+      }),
+    );
   }
 
   private assertUniqueDishes(items: OrderItemDto[]) {
     const dishIds = items.map((item) => item.dishId);
 
     if (new Set(dishIds).size !== dishIds.length) {
-      throw new ConflictException(
-        'В списке не должно быть повторяющихся блюд',
-      );
+      throw new ConflictException('В списке не должно быть повторяющихся блюд');
     }
   }
 
@@ -79,17 +110,29 @@ export class OrdersService {
     const date = dto.date === undefined ? new Date() : new Date(dto.date);
     const type = dto.type ?? 'dine-in';
     const guests = dto.guests ?? 1;
-    if (!Number.isFinite(date.getTime()) || (dto.date !== undefined && !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(dto.date)) ||
-      !['dine-in', 'takeaway'].includes(type) || !Number.isSafeInteger(guests) || guests < 1 ||
-      (dto.table != null && (!Number.isSafeInteger(dto.table) || dto.table < 1)))
-      throw new BadRequestException('Некорректная дата, тип заказа, стол или количество человек');
+    if (
+      !Number.isFinite(date.getTime()) ||
+      (dto.date !== undefined && !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(dto.date)) ||
+      !['dine-in', 'takeaway'].includes(type) ||
+      !Number.isSafeInteger(guests) ||
+      guests < 1 ||
+      (dto.table != null && (!Number.isSafeInteger(dto.table) || dto.table < 1))
+    )
+      throw new BadRequestException(
+        'Некорректная дата, тип заказа, стол или количество человек',
+      );
     const items = dto.items ?? [];
 
     if (items.length > 0) {
       this.assertUniqueDishes(items);
     }
 
-    const data: Prisma.OrderCreateInput = { date, type, guests, table: type === 'takeaway' ? null : dto.table ?? null };
+    const data: Prisma.OrderCreateInput = {
+      date,
+      type,
+      guests,
+      table: type === 'takeaway' ? null : (dto.table ?? null),
+    };
 
     if (items.length > 0) {
       data.items = {
@@ -97,12 +140,17 @@ export class OrdersService {
       };
     }
 
-    return this.toResponse(await this.prisma.order.create({
-      data,
-      include: {
-        items: true,
-      },
-    }));
+    const order = await this.toResponse(
+      await this.prisma.order.create({
+        data,
+        include: {
+          items: true,
+        },
+      }),
+    );
+    await this.eventPublisher.publishOrderCreated(order);
+
+    return order;
   }
 
   async addItems(payload: { orderId: number; dto: AddOrderItemsDto }) {
@@ -122,9 +170,7 @@ export class OrdersService {
     const existingDishIds = existingItems.map((item) => item.dishId);
 
     if (dishIds.some((id) => existingDishIds.includes(id))) {
-      throw new ConflictException(
-        'Одно или несколько блюд уже есть в заказе',
-      );
+      throw new ConflictException('Одно или несколько блюд уже есть в заказе');
     }
 
     const pricedItems = await this.priceItems(dto.items);
@@ -177,28 +223,51 @@ export class OrdersService {
   private toResponse(order: any) {
     const items = (order.items ?? []).map((item: any) => {
       const price = item.price == null ? null : new Prisma.Decimal(item.price);
-      return { ...item, name: item.name ?? null, imageURL: item.imageURL ?? null,
+      return {
+        ...item,
+        name: item.name ?? null,
+        imageURL: item.imageURL ?? null,
         price: price?.toNumber() ?? null,
-        totalPrice: price?.mul(item.quantity).toDecimalPlaces(2).toNumber() ?? null };
+        totalPrice:
+          price?.mul(item.quantity).toDecimalPlaces(2).toNumber() ?? null,
+      };
     });
-    const totalPrice = items.some(item => item.totalPrice === null) ? null :
-      items.reduce((sum: Prisma.Decimal, item: any) => sum.add(new Prisma.Decimal(item.price).mul(item.quantity)),
-        new Prisma.Decimal(0)).toDecimalPlaces(2).toNumber();
-    return { ...order, items, totalPrice, date: new Date(order.date).toISOString(),
-      created_at: order.created_at ? new Date(order.created_at).toISOString() : undefined,
-      updated_at: order.updated_at ? new Date(order.updated_at).toISOString() : undefined };
+    const totalPrice = items.some((item) => item.totalPrice === null)
+      ? null
+      : items
+          .reduce(
+            (sum: Prisma.Decimal, item: any) =>
+              sum.add(new Prisma.Decimal(item.price).mul(item.quantity)),
+            new Prisma.Decimal(0),
+          )
+          .toDecimalPlaces(2)
+          .toNumber();
+    return {
+      ...order,
+      items,
+      totalPrice,
+      date: new Date(order.date).toISOString(),
+      created_at: order.created_at
+        ? new Date(order.created_at).toISOString()
+        : undefined,
+      updated_at: order.updated_at
+        ? new Date(order.updated_at).toISOString()
+        : undefined,
+    };
   }
 
   async changeStatus(payload: { id: number; status: OrderStatus }) {
     await this.ensureOrderExists(payload.id);
 
-    return this.toResponse(await this.prisma.order.update({
-      where: { id: payload.id },
-      data: {
-        status: payload.status,
-      },
-      include: { items: true },
-    }));
+    return this.toResponse(
+      await this.prisma.order.update({
+        where: { id: payload.id },
+        data: {
+          status: payload.status,
+        },
+        include: { items: true },
+      }),
+    );
   }
 
   async remove(id: number) {
@@ -253,23 +322,27 @@ export class OrdersService {
       (order) => order.status === OrderStatus.completed,
     );
 
-    const active = orders.filter(
-      (order) => activeStatuses.includes(order.status),
+    const active = orders.filter((order) =>
+      activeStatuses.includes(order.status),
     ).length;
 
     const revenue = completedOrders.reduce((total, order) => {
       const orderTotal = order.items.reduce((sum, item) => {
         if (item.price === null) {
-          return sum.add((item.price ?? new Prisma.Decimal(0)).mul(item.quantity));
+          return sum.add(
+            (item.price ?? new Prisma.Decimal(0)).mul(item.quantity),
+          );
         }
 
         return sum.add(item.price.mul(item.quantity));
       }, new Prisma.Decimal(0));
 
-    return total.add(orderTotal);
+      return total.add(orderTotal);
     }, new Prisma.Decimal(0));
 
-    const cancelled = orders.filter(o => o.status === OrderStatus.cancelled).length;
+    const cancelled = orders.filter(
+      (o) => o.status === OrderStatus.cancelled,
+    ).length;
 
     return {
       total: orders.length,

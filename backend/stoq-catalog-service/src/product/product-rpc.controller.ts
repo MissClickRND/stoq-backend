@@ -17,8 +17,8 @@ export class ProductRPCController {
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
-    routingKey: ROUTING_KEYS.AI_RECOGNIZE_UPD,
-    queue: QUEUES.AI_COMMANDS,
+    routingKey: ROUTING_KEYS.RESOLVE_UPD_PRODUCTS,
+    queue: QUEUES.CATALOG_COMMANDS,
   })
   resolveUpdProducts(payload: { items: UpdProductRow[] }) {
     return executeRpc(() => this.productService.resolveUpdProducts(payload));

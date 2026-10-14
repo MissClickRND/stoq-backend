@@ -6,6 +6,7 @@ import {
   ROUTING_KEYS,
 } from '../../common/rabbitMQ/rabbitmq-topology';
 import { z } from 'zod';
+import type { Multer } from 'multer';
 
 const number = z.number().nonnegative().nullable();
 const resultSchema = z.strictObject({
@@ -106,7 +107,7 @@ export class AiService {
     return parsed.data;
   }
   async health() {
-    const response = await this.request(ROUTING_KEYS.AI_HEALTH, {}, 5000);
+    const response = await this.request(ROUTING_KEYS.AI_HEALTH, {}, 15000);
     if (response?.status !== 'ok')
       throw new HttpException(
         {
@@ -123,7 +124,7 @@ export class AiService {
     try {
       reply = await this.bus.sendCommand(
         EXCHANGES.COMMANDS,
-        ROUTING_KEYS.AI_RECOGNIZE_UPD,
+        ROUTING_KEYS.RESOLVE_UPD_PRODUCTS,
         { items: recognized.items },
         { timeoutMs: 30000 },
       );

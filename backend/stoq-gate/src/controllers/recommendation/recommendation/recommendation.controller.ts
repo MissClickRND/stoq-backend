@@ -19,13 +19,19 @@ export class RecommendationsController {
     }
     return response.data;
   }
-  
-  @ApiOperation({ summary: 'Получить стоп-лист блюд' })
+
   @ApiQuery({
     name: 'search',
     required: false,
     description: 'Подстрока для поиска блюда в стоп-листе',
     example: 'беф',
+  })
+  @ApiOperation({
+    summary: 'Получить рекомендации блюд',
+    description:
+      'Отправьте событие `recommendations:getDishRecommendations`. ' +
+      'Сервер ответит событием `recommendations:dishRecommendationsResult` (успех) ' +
+      'или `recommendations:error` (ошибка).',
   })
   @ApiOkResponse({ description: 'Стоп-лист' })
   @Get()
@@ -39,7 +45,13 @@ export class RecommendationsController {
     return this.handleRpcResponse(response);
   }
 
-  @ApiOperation({ summary: 'Получить приоритетные блюда для приготовления' })
+  @ApiOperation({
+    summary: 'Получить рекомендации блюд',
+    description:
+      'Отправьте событие `recommendations:getDishRecommendations`. ' +
+      'Сервер ответит событием `recommendations:dishRecommendationsResult` (успех) ' +
+      'или `recommendations:error` (ошибка).',
+  })
   @ApiOkResponse({ description: 'Рекомендации по приготовлению блюд' })
   @Get('dishes')
   async getDishRecommendations() {
@@ -49,5 +61,16 @@ export class RecommendationsController {
       {},
     );
     return this.handleRpcResponse(response);
+  }
+
+  @ApiOperation({
+    summary: 'Обновление стоп-листа (Server-to-Client)',
+    description:
+      'Событие рассылается сервером всем подключенным клиентам при изменении стоп-листа. ' +
+      'Клиенту следует слушать событие `recommendations:stopListUpdated`.',
+  })
+  @Get('d')
+  broadcastStopListUpdated() {
+    return { status: 'ok' };
   }
 }

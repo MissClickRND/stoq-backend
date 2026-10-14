@@ -1,491 +1,378 @@
-import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import Redis from "ioredis";
 import { StopListReason } from "@prisma/client";
 import { CommandBusService } from "../common/rabbitMQ/command-bus.service";
 import { EXCHANGES, ROUTING_KEYS } from "../common/rabbitMQ/rabbitmq-topology";
+import { REDIS_CLIENT } from "../common/redis/redis.module";
 import {
-    DishData,
-    DishRecommendation,
-    DishStatus,
-    DishSuggestion,
-    ProductStock,
-    RecommendationBatch,
+  DishData,
+  DishRecommendation,
+  DishStatus,
+  DishSuggestion,
+  mapRawCatalogToDishes,
+  mapRawInventoryToBatches,
+  mapRawInventoryToStocks,
+  ProductStock,
+  RawCatalogDish,
+  RawInventoryBatch,
+  RecommendationBatch,
+  RpcResponse,
 } from "./types/recommendation.types";
 
 @Injectable()
 export class RecommendationService {
-    private readonly lowStockLimit = 3;
+  private readonly logger = new Logger(RecommendationService.name);
 
-    constructor(private readonly commandBusService: CommandBusService) {}
+  private readonly lowStockLimit = 3;
+  private readonly MS_IN_DAY = 1000 * 60 * 60 * 24;
 
-    async getStopListFromServices(
-        search?: string,
-    ): Promise<DishRecommendation[]> {
-        try {
-            const [catalogResponse, inventoryResponse] = await Promise.all([
-                this.commandBusService.sendCommand<RpcResponse<CatalogDish[]>>(
-                    EXCHANGES.COMMANDS,
-                    ROUTING_KEYS.GET_DISHES,
-                    {},
-                ),
-                this.commandBusService.sendCommand<
-                    RpcResponse<InventoryBatch[]>
-                >(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY, {}),
-            ]);
+  private readonly cacheTtl = Number(
+    process.env.RECOMMENDATION_CACHE_TTL ?? 30,
+  );
 
-            if (!catalogResponse.success || !inventoryResponse.success) {
-                throw new Error("Catalog or Inventory returned an RPC error");
-            }
+  private readonly CACHE_KEY_STATUSES = "recommendation:dish-statuses";
+  private readonly CACHE_KEY_DISH_RECOMMENDATIONS =
+    "recommendation:dish-recommendations";
 
-            const dishes: DishData[] = catalogResponse.data.map((dish) => ({
-                id: dish.id,
-                name: dish.name,
-                salePrice: dish.salePrice,
-                recipeItems: dish.recipeItems.map((item) => ({
-                    productId: item.productId,
-                    productName:
-                        item.product?.name?.trim() ||
-                        `Продукт ${item.productId}`,
-                    quantityPerPortion: item.quantity,
-                })),
-            }));
+  constructor(
+    private readonly commandBusService: CommandBusService,
+    @Inject(REDIS_CLIENT)
+    private readonly redis: Redis,
+  ) {}
 
-            const stocksByProduct = new Map<number, ProductStock>();
-            const now = Date.now();
+  async getStopListDishes(
+    search?: string,
+    forceRefresh = false,
+  ): Promise<DishRecommendation[]> {
+    const allRecommendations = await this.getDishStatuses(forceRefresh);
 
-            for (const batch of inventoryResponse.data) {
-                const stock = stocksByProduct.get(batch.productId) ?? {
-                    productId: batch.productId,
-                    availableQuantity: 0,
-                    expiredQuantity: 0,
-                };
-                const quantity = batch.balance?.availableQuantity;
-                const expiresAt = Date.parse(batch.expiresAt);
+    const query = search?.trim().toLowerCase();
 
-                if (
-                    typeof quantity !== "number" ||
-                    !Number.isFinite(quantity) ||
-                    quantity < 0 ||
-                    Number.isNaN(expiresAt)
-                ) {
-                    stocksByProduct.set(batch.productId, stock);
-                    continue;
-                }
+    console.log;
+    return allRecommendations.filter(
+      (dish) =>
+        dish.status === "STOP_LIST" &&
+        (!query || dish.dishName.toLowerCase().includes(query)),
+    );
+  }
 
-                if (expiresAt <= now) {
-                    stock.expiredQuantity += quantity;
-                } else {
-                    stock.availableQuantity += quantity;
-                }
+  async getDishRecommendations(
+    forceRefresh = false,
+  ): Promise<DishSuggestion[]> {
+    if (!forceRefresh) {
+      const cached = await this.redis.get(this.CACHE_KEY_DISH_RECOMMENDATIONS);
 
-                stocksByProduct.set(batch.productId, stock);
-            }
-
-            return this.getStopList(
-                dishes,
-                [...stocksByProduct.values()],
-                search,
-            );
-        } catch {
-            throw new ServiceUnavailableException(
-                "Не удалось получить данные из Catalog или Inventory через RabbitMQ",
-            );
-        }
+      if (cached) {
+        return JSON.parse(cached);
+      }
     }
 
-    async getDishRecommendationsFromServices(): Promise<DishSuggestion[]> {
-        try {
-            const [catalogResponse, inventoryResponse] = await Promise.all([
-                this.commandBusService.sendCommand<RpcResponse<CatalogDish[]>>(
-                    EXCHANGES.COMMANDS,
-                    ROUTING_KEYS.GET_DISHES,
-                    {},
-                ),
-                this.commandBusService.sendCommand<
-                    RpcResponse<InventoryBatch[]>
-                >(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY, {}),
-            ]);
+    const { dishes, batches } = await this.fetchBatchData();
+    const result = this.calculateDishRecommendations(dishes, batches);
 
-            if (!catalogResponse.success || !inventoryResponse.success) {
-                throw new Error("Catalog or Inventory returned an RPC error");
-            }
+    await this.redis.set(
+      this.CACHE_KEY_DISH_RECOMMENDATIONS,
+      JSON.stringify(result),
+      "EX",
+      this.cacheTtl,
+    );
 
-            const dishes: DishData[] = catalogResponse.data.map((dish) => ({
-                id: dish.id,
-                name: dish.name,
-                salePrice: dish.salePrice,
-                recipeItems: dish.recipeItems.map((item) => ({
-                    productId: item.productId,
-                    productName:
-                        item.product?.name?.trim() ||
-                        `Продукт ${item.productId}`,
-                    quantityPerPortion: item.quantity,
-                })),
-            }));
+    return result;
+  }
 
-            const batches: RecommendationBatch[] = inventoryResponse.data
-                .filter(
-                    (batch) =>
-                        Number.isFinite(batch.productId) &&
-                        Number.isFinite(batch.availableQuantity) &&
-                        Number.isFinite(Date.parse(batch.expiresAt)),
-                )
-                .map((batch) => ({
-                    productId: batch.productId,
-                    availableQuantity: Number(batch.availableQuantity),
-                    price:
-                        typeof batch.price === "number" &&
-                        Number.isFinite(batch.price)
-                            ? batch.price
-                            : null,
-                    expiresAt: new Date(batch.expiresAt),
-                    status:
-                        batch.status === "ACTIVE" ||
-                        batch.status === "DEPLETED" ||
-                        batch.status === "EXPIRED" ||
-                        batch.status === "QUARANTINED"
-                            ? batch.status
-                            : "DEPLETED",
-                }));
+  async getDishStatuses(forceRefresh = false): Promise<DishRecommendation[]> {
+    if (!forceRefresh) {
+      const cached = await this.redis.get(this.CACHE_KEY_STATUSES);
 
-            return this.calculateDishRecommendations(dishes, batches);
-        } catch {
-            throw new ServiceUnavailableException(
-                "Не удалось получить данные из Catalog или Inventory через RabbitMQ",
-            );
-        }
+      if (cached) {
+        return JSON.parse(cached);
+      }
     }
 
-    calculateRecommendations(
-        dishes: DishData[],
-        stocks: ProductStock[],
-    ): DishRecommendation[] {
-        const stockMap = new Map(
-            stocks.map((stock) => [stock.productId, stock]),
+    const { dishes, stocks } = await this.fetchStockData();
+    const result = this.calculateRecommendations(dishes, stocks);
+
+    await this.redis.set(
+      this.CACHE_KEY_STATUSES,
+      JSON.stringify(result),
+      "EX",
+      this.cacheTtl,
+    );
+
+    return result;
+  }
+
+  async invalidateCache(): Promise<void> {
+    await this.redis.del(this.CACHE_KEY_STATUSES);
+    await this.redis.del(this.CACHE_KEY_DISH_RECOMMENDATIONS);
+  }
+
+  async refreshAfterEvent(reason: string) {
+    try {
+      // Пересчитываем статусы
+      const statuses = await this.getDishStatuses(true);
+
+      // Если рекомендации тоже зависят от склада/заказов — обновляем и их
+      await this.getDishRecommendations(true).catch((err) => {
+        this.logger.warn(
+          `Не удалось пересчитать рекомендации после события ${reason}`,
+          err,
         );
+      });
 
-        return dishes.map((dish) => {
-            let maxPortions = dish.recipeItems.length ? Infinity : 0;
-            const reasons = new Map<
-                string,
-                DishRecommendation["reasons"][number]
-            >();
-
-            for (const item of dish.recipeItems) {
-                const stock = stockMap.get(item.productId);
-                const productName = item.productName.trim();
-
-                if (
-                    !stock ||
-                    !Number.isFinite(item.quantityPerPortion) ||
-                    item.quantityPerPortion <= 0 ||
-                    !Number.isFinite(stock.availableQuantity) ||
-                    stock.availableQuantity < 0
-                ) {
-                    maxPortions = 0;
-
-                    if (productName) {
-                        reasons.set(
-                            `${StopListReason.INSUFFICIENT_STOCK}:${item.productId}`,
-                            {
-                                status: StopListReason.INSUFFICIENT_STOCK,
-                                name: productName,
-                            },
-                        );
-                    }
-                    continue;
-                }
-
-                const portions = Math.floor(
-                    stock.availableQuantity / item.quantityPerPortion,
-                );
-                maxPortions = Math.min(maxPortions, portions);
-
-                if (portions === 0 && productName) {
-                    reasons.set(
-                        `${StopListReason.INSUFFICIENT_STOCK}:${item.productId}`,
-                        {
-                            status: StopListReason.INSUFFICIENT_STOCK,
-                            name: productName,
-                        },
-                    );
-
-                    if (stock.expiredQuantity > 0) {
-                        reasons.set(
-                            `${StopListReason.EXPIRED_INGREDIENT}:${item.productId}`,
-                            {
-                                status: StopListReason.EXPIRED_INGREDIENT,
-                                name: productName,
-                            },
-                        );
-                    }
-                }
-            }
-
-            const status: DishStatus =
-                maxPortions === 0
-                    ? "STOP_LIST"
-                    : maxPortions <= this.lowStockLimit
-                      ? "LOW_STOCK"
-                      : "AVAILABLE";
-
-            return {
-                dishId: dish.id,
-                dishName: dish.name,
-                salePrice: dish.salePrice,
-                status,
-                maxPortions: Number.isFinite(maxPortions) ? maxPortions : 0,
-                priority: 0,
-                reasons: status === "STOP_LIST" ? [...reasons.values()] : [],
-            };
-        });
+      return {
+        reason,
+        updatedAt: new Date().toISOString(),
+        stopList: statuses.filter((x) => x.status === "STOP_LIST"),
+        statuses,
+      };
+    } catch (err) {
+      this.logger.error(`Ошибка пересчёта после события ${reason}`, err);
+      throw err;
     }
+  }
 
-    getStopList(
-        dishes: DishData[],
-        stocks: ProductStock[],
-        search?: string,
-    ): DishRecommendation[] {
-        const query = search?.trim().toLowerCase();
+  private async fetchRawData(): Promise<{
+    catalog: RawCatalogDish[];
+    inventory: RawInventoryBatch[];
+  }> {
+    try {
+      const [catalogResponse, inventoryResponse] = await Promise.all([
+        this.commandBusService.sendCommand(
+          EXCHANGES.COMMANDS,
+          ROUTING_KEYS.GET_DISHES,
+          {},
+        ) as Promise<RpcResponse<RawCatalogDish[]>>,
+        this.commandBusService.sendCommand(
+          EXCHANGES.COMMANDS,
+          ROUTING_KEYS.GET_INVENTORY,
+          {},
+        ) as Promise<RpcResponse<RawInventoryBatch[]>>,
+      ]);
 
-        return this.calculateRecommendations(dishes, stocks).filter(
-            (dish) =>
-                dish.status === "STOP_LIST" &&
-                (!query || dish.dishName.toLowerCase().includes(query)),
-        );
+      if (!catalogResponse.success || !inventoryResponse.success) {
+        throw new Error("RPC returned success: false");
+      }
+
+      return {
+        catalog: catalogResponse.data,
+        inventory: inventoryResponse.data,
+      };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        "Не удалось получить данные из Catalog или Inventory",
+      );
     }
+  }
 
-    calculateDishRecommendations(
-        dishes: DishData[],
-        batches: RecommendationBatch[],
-    ): DishSuggestion[] {
-        const now = new Date();
+  private async fetchStockData() {
+    const { catalog, inventory } = await this.fetchRawData();
+    return {
+      dishes: mapRawCatalogToDishes(catalog),
+      stocks: mapRawInventoryToStocks(inventory),
+    };
+  }
 
-        const availableBatches = batches.filter(
-            (batch) =>
-                batch.status === "ACTIVE" &&
-                new Date(batch.expiresAt) > now &&
-                batch.availableQuantity > 0,
-        );
+  private async fetchBatchData() {
+    const { catalog, inventory } = await this.fetchRawData();
+    return {
+      dishes: mapRawCatalogToDishes(catalog),
+      batches: mapRawInventoryToBatches(inventory),
+    };
+  }
 
-        const recommendations: DishSuggestion[] = [];
+  private calculateRecommendations(
+    dishes: DishData[],
+    stocks: ProductStock[],
+  ): DishRecommendation[] {
+    const stockMap = new Map(stocks.map((stock) => [stock.productId, stock]));
 
-        for (const dish of dishes) {
-            if (
-                !dish.recipeItems.length ||
-                dish.salePrice == null ||
-                Number(dish.salePrice) <= 0
-            ) {
-                continue;
-            }
+    return dishes.map((dish) => {
+      let maxPortions = dish.recipeItems.length ? Infinity : 0;
+      const reasons = new Map<string, DishRecommendation["reasons"][number]>();
 
-            let maxPortions = Infinity;
-            let costPrice = 0;
-            let costKnown = true;
-            let urgencyScore = 0;
+      for (const item of dish.recipeItems) {
+        const stock = stockMap.get(item.productId);
 
-            const expiringProducts = new Set<string>();
-
-            for (const item of dish.recipeItems) {
-                const quantityPerPortion = Number(item.quantityPerPortion);
-
-                if (
-                    !Number.isFinite(quantityPerPortion) ||
-                    quantityPerPortion <= 0
-                ) {
-                    maxPortions = 0;
-                    break;
-                }
-
-                const productBatches = availableBatches.filter(
-                    (batch) => batch.productId === item.productId,
-                );
-
-                const totalQuantity = productBatches.reduce(
-                    (sum, batch) => sum + Number(batch.availableQuantity),
-                    0,
-                );
-
-                const portions = Math.floor(totalQuantity / quantityPerPortion);
-
-                maxPortions = Math.min(maxPortions, portions);
-
-                if (portions === 0) {
-                    continue;
-                }
-
-                const hasUnknownPrice = productBatches.some(
-                    (batch) => batch.price == null,
-                );
-
-                if (hasUnknownPrice || productBatches.length === 0) {
-                    costKnown = false;
-                } else {
-                    const totalCost = productBatches.reduce(
-                        (sum, batch) =>
-                            sum +
-                            Number(batch.price) *
-                                Number(batch.availableQuantity),
-                        0,
-                    );
-
-                    costPrice +=
-                        (totalCost / totalQuantity) * quantityPerPortion;
-                }
-
-                let productUrgency = 0;
-
-                for (const batch of productBatches) {
-                    const expiresAt = new Date(batch.expiresAt);
-                    const daysLeft =
-                        (expiresAt.getTime() - now.getTime()) /
-                        (1000 * 60 * 60 * 24);
-
-                    if (daysLeft <= 1) {
-                        productUrgency +=
-                            Number(batch.availableQuantity) /
-                            quantityPerPortion;
-                    } else if (daysLeft <= 3) {
-                        productUrgency +=
-                            (Number(batch.availableQuantity) /
-                                quantityPerPortion) *
-                            0.5;
-                    }
-                }
-
-                if (productUrgency > 0) {
-                    expiringProducts.add(item.productName);
-                    urgencyScore += Math.min(productUrgency, 1);
-                }
-            }
-
-            if (maxPortions < 1 || !Number.isFinite(maxPortions)) {
-                continue;
-            }
-
-            const salePrice = Number(dish.salePrice);
-            const profit = costKnown ? salePrice - costPrice : null;
-
-            const profitMargin =
-                profit !== null
-                    ? Math.max(0, Math.min(profit / salePrice, 1))
-                    : 0;
-
-            const urgency = urgencyScore / dish.recipeItems.length;
-
-            const recommendationScore =
-                Math.round((urgency * 50 + profitMargin * 50) * 100) / 100;
-
-            recommendations.push({
-                dishId: dish.id,
-                dishName: dish.name,
-                salePrice,
-                costPrice: costKnown ? Math.round(costPrice * 100) / 100 : null,
-                profit: profit !== null ? Math.round(profit * 100) / 100 : null,
-                maxPortions,
-                expiringProducts: [...expiringProducts],
-                recommendationScore,
-            });
+        if (
+          !stock ||
+          stock.availableQuantity < 0 ||
+          item.quantityPerPortion <= 0
+        ) {
+          maxPortions = 0;
+          this.addStopReason(
+            reasons,
+            StopListReason.INSUFFICIENT_STOCK,
+            item.productId,
+            item.productName,
+          );
+          continue;
         }
 
-        return recommendations.sort(
-            (a, b) => b.recommendationScore - a.recommendationScore,
+        const portions = Math.floor(
+          stock.availableQuantity / item.quantityPerPortion,
         );
-    }
+        maxPortions = Math.min(maxPortions, portions);
 
-    async getDishStatusesFromServices(): Promise<DishRecommendation[]> {
-        try {
-            const [catalogResponse, inventoryResponse] = await Promise.all([
-                this.commandBusService.sendCommand<RpcResponse<CatalogDish[]>>(
-                    EXCHANGES.COMMANDS,
-                    ROUTING_KEYS.GET_DISHES,
-                    {},
-                ),
-                this.commandBusService.sendCommand<
-                    RpcResponse<InventoryBatch[]>
-                >(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY, {}),
-            ]);
+        if (portions === 0) {
+          this.addStopReason(
+            reasons,
+            StopListReason.INSUFFICIENT_STOCK,
+            item.productId,
+            item.productName,
+          );
 
-            if (!catalogResponse.success || !inventoryResponse.success) {
-                throw new Error("Catalog or Inventory returned an RPC error");
-            }
-
-            const dishes: DishData[] = catalogResponse.data.map((dish) => ({
-                id: dish.id,
-                name: dish.name,
-                salePrice: dish.salePrice,
-                recipeItems: dish.recipeItems.map((item) => ({
-                    productId: item.productId,
-                    productName:
-                        item.product?.name?.trim() ||
-                        `Продукт ${item.productId}`,
-                    quantityPerPortion: item.quantity,
-                })),
-            }));
-
-            const stocksByProduct = new Map<number, ProductStock>();
-            const now = Date.now();
-
-            for (const batch of inventoryResponse.data) {
-                const stock = stocksByProduct.get(batch.productId) ?? {
-                    productId: batch.productId,
-                    availableQuantity: 0,
-                    expiredQuantity: 0,
-                };
-
-                const quantity = batch.balance?.availableQuantity;
-                const expiresAt = Date.parse(batch.expiresAt);
-
-                if (
-                    typeof quantity !== "number" ||
-                    !Number.isFinite(quantity) ||
-                    quantity < 0 ||
-                    Number.isNaN(expiresAt)
-                ) {
-                    stocksByProduct.set(batch.productId, stock);
-                    continue;
-                }
-
-                if (expiresAt <= now) {
-                    stock.expiredQuantity += quantity;
-                } else {
-                    stock.availableQuantity += quantity;
-                }
-
-                stocksByProduct.set(batch.productId, stock);
-            }
-
-            return this.calculateRecommendations(dishes, [
-                ...stocksByProduct.values(),
-            ]);
-        } catch {
-            throw new ServiceUnavailableException(
-                "Не удалось получить данные из Catalog или Inventory через RabbitMQ",
+          if (stock.expiredQuantity > 0) {
+            this.addStopReason(
+              reasons,
+              StopListReason.EXPIRED_INGREDIENT,
+              item.productId,
+              item.productName,
             );
+          }
         }
+      }
+
+      const status: DishStatus =
+        maxPortions === 0
+          ? "STOP_LIST"
+          : maxPortions <= this.lowStockLimit
+            ? "LOW_STOCK"
+            : "AVAILABLE";
+
+      return {
+        dishId: dish.id,
+        dishName: dish.name,
+        salePrice: dish.salePrice,
+        status,
+        maxPortions: Number.isFinite(maxPortions) ? maxPortions : 0,
+        priority: 0,
+        reasons: status === "STOP_LIST" ? Array.from(reasons.values()) : [],
+      };
+    });
+  }
+
+  private addStopReason(
+    reasons: Map<string, any>,
+    status: StopListReason,
+    productId: number,
+    productName: string,
+  ) {
+    if (productName) {
+      reasons.set(`${status}:${productId}`, {
+        status,
+        name: productName,
+      });
     }
-}
+  }
 
-interface RpcResponse<T> {
-    success: boolean;
-    data: T;
-}
+  private calculateDishRecommendations(
+    dishes: DishData[],
+    batches: RecommendationBatch[],
+  ): DishSuggestion[] {
+    const now = new Date();
 
-interface CatalogDish {
-    id: number;
-    name: string;
-    salePrice: number | null;
-    recipeItems: Array<{
-        productId: number;
-        quantity: number;
-        product?: { name?: string };
-    }>;
-}
+    const batchesByProduct = new Map<number, RecommendationBatch[]>();
+    for (const batch of batches) {
+      if (
+        batch.status === "ACTIVE" &&
+        batch.expiresAt > now &&
+        batch.availableQuantity > 0
+      ) {
+        if (!batchesByProduct.has(batch.productId)) {
+          batchesByProduct.set(batch.productId, []);
+        }
+        const productId = batch.productId;
+        const existingBatches = batchesByProduct.get(productId) ?? [];
+        existingBatches.push(batch);
+        batchesByProduct.set(productId, existingBatches);
+      }
+    }
 
-interface InventoryBatch {
-    productId: number;
-    expiresAt: string;
-    availableQuantity?: number;
-    price?: number | null;
-    status?: string;
-    balance?: { availableQuantity: number } | null;
+    const recommendations: DishSuggestion[] = [];
+
+    for (const dish of dishes) {
+      if (!dish.recipeItems.length || !dish.salePrice || dish.salePrice <= 0)
+        continue;
+
+      let maxPortions = Infinity;
+      let costPrice = 0;
+      let costKnown = true;
+      let urgencyScore = 0;
+      const expiringProducts = new Set<string>();
+
+      for (const item of dish.recipeItems) {
+        if (item.quantityPerPortion <= 0) {
+          maxPortions = 0;
+          break;
+        }
+
+        const productBatches = batchesByProduct.get(item.productId) || [];
+        const totalQuantity = productBatches.reduce(
+          (sum, b) => sum + b.availableQuantity,
+          0,
+        );
+        const portions = Math.floor(totalQuantity / item.quantityPerPortion);
+
+        maxPortions = Math.min(maxPortions, portions);
+        if (portions === 0) continue;
+
+        const hasUnknownPrice = productBatches.some((b) => b.price == null);
+        if (hasUnknownPrice || productBatches.length === 0) {
+          costKnown = false;
+        } else {
+          const totalCost = productBatches.reduce(
+            (sum, b) => sum + b.price! * b.availableQuantity,
+            0,
+          );
+          costPrice += (totalCost / totalQuantity) * item.quantityPerPortion;
+        }
+        let productUrgency = 0;
+        for (const batch of productBatches) {
+          const daysLeft =
+            (batch.expiresAt.getTime() - now.getTime()) / this.MS_IN_DAY;
+          if (daysLeft <= 1) {
+            productUrgency += batch.availableQuantity / item.quantityPerPortion;
+          } else if (daysLeft <= 3) {
+            productUrgency +=
+              (batch.availableQuantity / item.quantityPerPortion) * 0.5;
+          }
+        }
+
+        if (productUrgency > 0) {
+          expiringProducts.add(item.productName);
+          urgencyScore += Math.min(productUrgency, 1);
+        }
+      }
+
+      if (maxPortions < 1 || !Number.isFinite(maxPortions)) continue;
+
+      const profit = costKnown ? dish.salePrice - costPrice : null;
+      const profitMargin =
+        profit !== null ? Math.max(0, Math.min(profit / dish.salePrice, 1)) : 0;
+      const urgency = urgencyScore / dish.recipeItems.length;
+      const recommendationScore =
+        Math.round((urgency * 50 + profitMargin * 50) * 100) / 100;
+
+      recommendations.push({
+        dishId: dish.id,
+        dishName: dish.name,
+        salePrice: dish.salePrice,
+        costPrice: costKnown ? Math.round(costPrice * 100) / 100 : null,
+        profit: profit !== null ? Math.round(profit * 100) / 100 : null,
+        maxPortions,
+        expiringProducts: Array.from(expiringProducts),
+        recommendationScore,
+      });
+    }
+
+    return recommendations.sort(
+      (a, b) => b.recommendationScore - a.recommendationScore,
+    );
+  }
 }

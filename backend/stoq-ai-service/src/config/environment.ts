@@ -9,8 +9,15 @@ const EnvironmentSchema = z.object({
     .default("development"),
   HOST: z.string().min(1).default("127.0.0.1"),
   PORT: integer(3006, 1, 65535),
-  RABBITMQ_ENABLED: z.union([z.boolean(), z.literal('true'), z.literal('false')]).transform(value => value === true || value === 'true').default(true),
-  RABBITMQ_URL: z.string().url().refine(value => ['amqp:', 'amqps:'].includes(new URL(value).protocol)).default('amqp://admin:admin@localhost:5672'),
+  RABBITMQ_ENABLED: z
+    .union([z.boolean(), z.literal("true"), z.literal("false")])
+    .transform((value) => value === true || value === "true")
+    .default(true),
+  RABBITMQ_URL: z
+    .string()
+    .url()
+    .refine((value) => ["amqp:", "amqps:"].includes(new URL(value).protocol))
+    .default("amqp://admin:admin@localhost:5672"),
   OPENROUTER_API_KEY: z
     .string()
     .trim()
@@ -43,7 +50,7 @@ const EnvironmentSchema = z.object({
         return false;
       }
     }, "Укажите HTTP/HTTPS-прокси без пути, query и fragment"),
-  OPENROUTER_TIMEOUT_MS: integer(120000, 1000, 600000),
+  OPENROUTER_TIMEOUT_MS: integer(120000, 1000, 300000),
   OPENROUTER_MAX_OUTPUT_TOKENS: integer(16000, 256, 100000),
   MAX_FILE_SIZE_MB: integer(20, 1, 20),
   MAX_PDF_PAGES: integer(30, 1, 100),

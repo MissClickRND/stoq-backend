@@ -2,6 +2,7 @@ import { Controller, Get, Module } from "@nestjs/common";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { SettingsModule } from "./config/settings.module";
 import { UpdModule } from "./upd/upd.module";
+import { CommandBusModule } from "./common/rabbitMQ/command-bus.module";
 
 @ApiTags("Health")
 @Controller("ai/health")
@@ -20,7 +21,7 @@ class HealthController {
 }
 
 @Module({
-  imports: [SettingsModule, UpdModule],
+  imports: [SettingsModule, UpdModule, CommandBusModule],
   controllers: [HealthController],
 })
 export class AppModule {}

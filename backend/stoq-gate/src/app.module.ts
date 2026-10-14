@@ -8,10 +8,11 @@ import { InventoryController } from './controllers/inventory/inventory/inventory
 import { CommandBusModule } from './common/rabbitMQ/command-bus.module';
 import { OrderController } from './controllers/order/order.controller';
 import { AiModule } from './controllers/ai/ai.module';
-import { RecommendationsController } from './controllers/recommendation/recommendation/recommendation.controller';
 import { DependencyGraphController } from './controllers/analytics/dependency-graph.controller';
-import { DependencyGraphService } from './controllers/analytics/dependency-graph.service';
 import { StatisticsController } from './controllers/recommendation/statistics/statistics.controller';
+import { RecommendationEventsListener } from './controllers/recommendation/recommendation/recommendation-events.listener';
+import { RecommendationsWsGateway } from './controllers/recommendation/recommendation/recommendation.ws.gateway';
+import { RecommendationsController } from './controllers/recommendation/recommendation/recommendation.controller';
 
 @Module({
   imports: [
@@ -26,10 +27,10 @@ import { StatisticsController } from './controllers/recommendation/statistics/st
     SupplyController,
     InventoryController,
     OrderController,
-    RecommendationsController,
     DependencyGraphController,
     StatisticsController,
+    RecommendationsController,
   ],
-  providers: [DependencyGraphService],
+  providers: [RecommendationsWsGateway, RecommendationEventsListener],
 })
 export class AppModule {}

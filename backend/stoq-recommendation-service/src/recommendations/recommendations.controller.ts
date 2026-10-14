@@ -22,13 +22,13 @@ export class RecommendationsController {
   @ApiOkResponse({ description: "Стоп-лист" })
   @Get("stop-list")
   findAll(@Query("search") search?: string) {
-    return this.recommendationService.getStopListFromServices(search);
+    return this.recommendationService.getStopListDishes(search);
   }
 
   @ApiOperation({ summary: "Получить приоритетные блюда для приготовления" })
   @ApiOkResponse({ description: "Рекомендации по приготовлению блюд" })
   @Get("dishes")
   getDishRecommendations() {
-    return this.recommendationService.getDishRecommendationsFromServices();
+    return this.recommendationService.getDishRecommendations();
   }
 }

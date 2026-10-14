@@ -1,22 +1,19 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
 import { executeRpc } from "src/common/utils/rpc-handler";
-
 import {
   EXCHANGES,
-  ROUTING_KEYS,
   QUEUES,
+  ROUTING_KEYS,
 } from "src/common/rabbitMQ/rabbitmq-topology";
-import { RecommendationProjectionService } from "./recommendation-projection.service";
-import { DependencyGraphService } from "./dependency-graph/dependency-graph.service";
 import { RecommendationService } from "./recommendations.service";
+import { DependencyGraphService } from "./dependency-graph/dependency-graph.service";
 
 @Injectable()
 export class RecommendationsRPCController {
   constructor(
-    private readonly projectionService: RecommendationProjectionService,
-    private readonly graphService: DependencyGraphService,
     private readonly recommendationService: RecommendationService,
+    private readonly dependencyGraphService: DependencyGraphService,
   ) {}
 
   @RabbitRPC({
@@ -24,19 +21,22 @@ export class RecommendationsRPCController {
     routingKey: ROUTING_KEYS.GET_DEPENDENCY_GRAPH,
     queue: QUEUES.RECOMMENDATION_COMMANDS,
   })
-  getDependencyGraph() {
-    return executeRpc(() => this.graphService.getGraph());
+  async getGraph() {
+    const result = await executeRpc(async () =>
+      this.dependencyGraphService.getGraph(),
+    );
+    return result;
   }
-
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.GET_RECOMMENDATION,
     queue: QUEUES.RECOMMENDATION_COMMANDS,
   })
-  findAll(payload: { search?: string }) {
-    return executeRpc(async () =>
-      this.projectionService.getStopList(payload.search),
+  async findAll(payload: { search?: string }) {
+    const result = await executeRpc(async () =>
+      this.recommendationService.getStopListDishes(payload.search),
     );
+    return result;
   }
 
   @RabbitRPC({
@@ -46,7 +46,7 @@ export class RecommendationsRPCController {
   })
   getDishRecommendations() {
     return executeRpc(() =>
-      this.recommendationService.getDishRecommendationsFromServices(),
+      this.recommendationService.getDishRecommendations(),
     );
   }
 }
