@@ -48,6 +48,14 @@ export class AuthService {
             throw new BadRequestException("Пользователь уже существует");
         }
 
+        const restaurant = await this.prisma.restaurant.findUnique({
+            where: { id: dto.restaurantId },
+        });
+
+        if (!restaurant) {
+            throw new BadRequestException("Ресторан не найден");
+        }
+
         const passwordHash = await bcrypt.hash(dto.password, 10);
 
         const user = await this.prisma.user.create({
@@ -56,11 +64,13 @@ export class AuthService {
                 email,
                 passwordHash,
                 role: Role.WAIT_CONFIRM,
+                restaurantId: dto.restaurantId,
             },
             select: {
                 id: true,
                 email: true,
                 role: true,
+                restaurantId: true,
             },
         });
 
@@ -71,49 +81,51 @@ export class AuthService {
     }
 
     async registerRestaurant(dto: RegisterRestaurantDto) {
-      const email = dto.email
+        const email = dto.email.toLowerCase().trim();
 
-      const existingUser = await this.prisma.user.findUnique({
-          where: { email },
-      });
-
-      if (existingUser) {
-          throw new BadRequestException("Пользователь уже существует");
-      }
-
-      const passwordHash = await bcrypt.hash(dto.password, 10);
-
-      const result = await this.prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-            data: {
-                email,
-                passwordHash,
-                role: Role.ADMIN,
-                fullName: dto.fullName,
-            },
-            select: {
-                id: true,
-                email: true,
-                fullName: true,
-                role: true,
-            },
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email },
         });
 
-        const restaurant = await tx.restaurant.create({
-            data: {
-                name: dto.restaurantName,
-                address: dto.restaurantAddress ?? "",
-            },
+        if (existingUser) {
+            throw new BadRequestException("Пользователь уже существует");
+        }
+
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            const restaurant = await tx.restaurant.create({
+                data: {
+                    name: dto.restaurantName,
+                    address: dto.restaurantAddress ?? "",
+                },
+            });
+
+            const user = await tx.user.create({
+                data: {
+                    fullName: dto.fullName,
+                    email,
+                    passwordHash,
+                    role: Role.ADMIN,
+                    restaurantId: restaurant.id,
+                },
+                select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    role: true,
+                    restaurantId: true,
+                },
+            });
+
+            return { user, restaurant };
         });
 
-        return { user, restaurant };
-    });
-
-    return {
-        message: "Ресторан успешно зарегистрирован",
-        ...result,
-    };
-  }
+        return {
+            message: "Ресторан успешно зарегистрирован",
+            ...result,
+        };
+    }
 
     async login(dto: LoginDto) {
         const email = dto.email;

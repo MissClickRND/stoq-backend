@@ -15,23 +15,30 @@ enum Role {
 }
 
 model User {
-  id                 Int      @id @default(autoincrement())
+  id                 Int        @id @default(autoincrement())
+  restaurantId       Int
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [id])
+
   fullName           String
-  email              String   @unique
+  email              String     @unique
   passwordHash       String
   hashedRefreshToken String?
-  tokenVersion       Int      @default(0)
-  role               Role     
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  tokenVersion       Int        @default(0)
+  role               Role
+
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 }
 
 model Restaurant {
-  id          Int      @id @default(autoincrement())
-  name        String
-  address     String
-  phone       String?
-  email       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String
+  phone     String?
+  email     String?
+
+  users     User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
