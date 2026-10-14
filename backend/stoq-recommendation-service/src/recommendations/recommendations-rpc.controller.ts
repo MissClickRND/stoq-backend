@@ -7,13 +7,16 @@ import {
   ROUTING_KEYS,
   QUEUES,
 } from "src/common/rabbitMQ/rabbitmq-topology";
-import { RecommendationService } from "./recommendations.service";
+import { RecommendationProjectionService } from "./recommendation-projection.service";
 import { DishRecommendationsDto } from "./dto/dish-recommendations.dto";
-import { DependencyGraphService } from './dependency-graph/dependency-graph.service';
+import { DependencyGraphService } from "./dependency-graph/dependency-graph.service";
 
 @Injectable()
 export class RecommendationsRPCController {
-  constructor(private readonly recommendationService: RecommendationService, private readonly graphService: DependencyGraphService) {}
+  constructor(
+    private readonly projectionService: RecommendationProjectionService,
+    private readonly graphService: DependencyGraphService,
+  ) {}
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
@@ -30,8 +33,8 @@ export class RecommendationsRPCController {
     queue: QUEUES.RECOMMENDATION_COMMANDS,
   })
   findAll(payload: { search?: string }) {
-    return executeRpc(() =>
-      this.recommendationService.getStopListFromServices(payload.search),
+    return executeRpc(async () =>
+      this.projectionService.getStopList(payload.search),
     );
   }
 
@@ -40,18 +43,9 @@ export class RecommendationsRPCController {
     routingKey: ROUTING_KEYS.GET_DISH_RECOMMENDATION,
     queue: QUEUES.RECOMMENDATION_COMMANDS,
   })
-  getDishRecommendations(payload: { dto: DishRecommendationsDto }) {
+  getDishRecommendations(payload: { search?: string }) {
     return executeRpc(async () =>
-      this.recommendationService.calculateDishRecommendations(
-        payload.dto.dishes.map((dish) => ({
-          ...dish,
-          recipeItems: dish.recipeItems.map((item) => ({
-            ...item,
-            productName: item.productName ?? `Продукт ${item.productId}`,
-          })),
-        })),
-        payload.dto.batches,
-      ),
+      this.projectionService.getStopList(payload.search),
     );
   }
 }

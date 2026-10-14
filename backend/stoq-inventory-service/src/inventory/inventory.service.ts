@@ -68,7 +68,6 @@ export class InventoryService {
     });
   }
 
-  // Internal stock query reads only inventory tables; it never calls catalog back.
   async getStock(productIds: number[]) {
     if (
       !Array.isArray(productIds) ||

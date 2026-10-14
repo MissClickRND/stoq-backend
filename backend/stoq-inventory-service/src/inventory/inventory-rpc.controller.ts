@@ -16,7 +16,7 @@ export class InventoryRPCController {
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.GET_INVENTORY_STOCK,
-    queue: QUEUES.INVENTORY_STOCK,
+    queue: QUEUES.INVENTORY_COMMANDS,
   })
   getStock(payload: { productIds: number[] }) {
     return executeRpc(() => this.inventoryService.getStock(payload.productIds));

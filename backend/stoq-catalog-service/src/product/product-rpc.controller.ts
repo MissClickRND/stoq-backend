@@ -2,10 +2,14 @@ import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
 import { ProductService } from "./product.service";
 import { CreateProductDto } from "./dto/request/create-product.dto";
-import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitMQ/rabbitmq-topology";
+import {
+  EXCHANGES,
+  QUEUES,
+  ROUTING_KEYS,
+} from "src/common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "src/common/utils/rpc-handler";
 import { CreateUnitDto } from "./dto/request/create-unit.dto";
-import { UpdProductRow } from './upd-products';
+import { UpdProductRow } from "./upd-products";
 
 @Injectable()
 export class ProductRPCController {
@@ -13,8 +17,8 @@ export class ProductRPCController {
 
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
-    routingKey: ROUTING_KEYS.RESOLVE_UPD_PRODUCTS,
-    queue: QUEUES.CATALOG_COMMANDS,
+    routingKey: ROUTING_KEYS.AI_RECOGNIZE_UPD,
+    queue: QUEUES.AI_COMMANDS,
   })
   resolveUpdProducts(payload: { items: UpdProductRow[] }) {
     return executeRpc(() => this.productService.resolveUpdProducts(payload));

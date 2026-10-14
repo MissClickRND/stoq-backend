@@ -16,7 +16,7 @@ import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 import { DishRecommendationsDto } from './dto/dish-recommendations.dto';
 
-@ApiTags('Recommendations')
+@ApiTags('Рекоммендации')
 @Controller('recommendations')
 export class RecommendationsController {
   constructor(private readonly commandBusService: CommandBusService) {}
@@ -27,6 +27,7 @@ export class RecommendationsController {
     }
     return response.data;
   }
+  
   @ApiOperation({ summary: 'Получить стоп-лист блюд' })
   @ApiQuery({
     name: 'search',
