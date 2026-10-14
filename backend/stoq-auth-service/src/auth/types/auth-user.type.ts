@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'WAITER' | 'COOK' | 'CUSTOMER';
+export type Role = 'ADMIN' | 'MANAGER' | 'WAITER' | 'STOREKEEPER' | 'WAIT_CONFIRM';
 
 export type AuthUser = {
   id: number;

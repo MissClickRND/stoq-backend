@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { AuthUserWithRefresh } from 'src/auth/types/auth-user.type';
+import { Role } from '@prisma/client';
 
 function cookieExtractorRefresh(req: Request): string | null {
   return req?.cookies?.refreshToken ?? null;
@@ -24,14 +25,14 @@ export class JwtRefreshStrategy extends PassportStrategy(
 
   async validate(
     req: Request,
-    payload: { sub: number; email: string },
+    payload: { sub: number; email: string, role: Role },
   ): Promise<AuthUserWithRefresh> {
     const refreshToken = req.cookies?.refreshToken;
     return {
       id: payload.sub,
       email: payload.email,
       refreshToken,
-      role: 'CUSTOMER',
+      role: payload.role,
     };
   }
 }

@@ -16,6 +16,7 @@ enum Role {
 
 model User {
   id                 Int      @id @default(autoincrement())
+  fullName           String
   email              String   @unique
   passwordHash       String
   hashedRefreshToken String?
@@ -23,4 +24,14 @@ model User {
   role               Role     
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+model Restaurant {
+  id          Int      @id @default(autoincrement())
+  name        String
+  address     String
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
