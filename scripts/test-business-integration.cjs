@@ -40,6 +40,7 @@ async function main() {
     for (const name of ['stoq-catalog-service', 'stoq-inventory-service', 'stoq-order-service']) {
       await pool.query(fs.readFileSync(path.join(servicePath(name), 'prisma/migrations/20261015160000_restaurant_isolation/migration.sql'), 'utf8'));
     }
+    await pool.query(fs.readFileSync(path.join(servicePath('stoq-inventory-service'), 'prisma/migrations/20261015193000_disposal_movement_authors/migration.sql'), 'utf8'));
     for (const table of ['"Unit"','"Product"','"Dish"','supply.supplies','inventory.batches','inventory.stock_movements','inventory.idempotency_keys','"Order"']) {
       await pool.query(`UPDATE ${table} SET "restaurantId" = 1 WHERE "restaurantId" IS NULL`);
     }

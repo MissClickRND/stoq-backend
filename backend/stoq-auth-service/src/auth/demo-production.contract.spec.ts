@@ -12,6 +12,8 @@ describe('Production demo restaurant feature flag', () => {
         findFirst: jest.fn(async () => ({ id: 4, restaurantId: 77, role: 'MANAGER', email: 'demo@example.invalid', fullName: 'Demo', tokenVersion: 0 })),
         update: jest.fn(),
       },
+      invitation: { createMany: jest.fn().mockResolvedValue({ count: 10 }) },
+      activityLog: { createMany: jest.fn().mockResolvedValue({ count: 20 }) },
       restaurant: {
         create: jest.fn(async () => ({ id: 77, isDemo: true, demoReady: false })),
         findMany: jest.fn(async () => [{ id: 77, isDemo: true, demoReady: true, users: [] }]),
@@ -37,7 +39,9 @@ describe('Production demo restaurant feature flag', () => {
   it('allows the full demo lifecycle with only the dedicated demo flag', async () => {
     const auth = service({ ENABLE_DEMO_RESTAURANTS: 'true' });
     expect(await auth.createDemoRestaurant(1)).toMatchObject({ restaurant: { id: 77, isDemo: true } });
-    expect(prisma.user.create).toHaveBeenCalledTimes(4);
+    expect(prisma.user.create).toHaveBeenCalledTimes(10);
+    expect(prisma.invitation.createMany.mock.calls[0][0].data).toHaveLength(10);
+    expect(prisma.activityLog.createMany.mock.calls[0][0].data).toHaveLength(20);
     expect(await auth.completeDemoRestaurant(1, 77)).toEqual({ ok: true });
     expect(await auth.listDemoRestaurants()).toEqual([{ id: 77, isDemo: true, demoReady: true, accounts: [] }]);
     expect(await auth.demoLogin(77, 'MANAGER')).toMatchObject({ user: { id: 4, restaurantId: 77, role: 'MANAGER' }, accessToken: expect.any(String), refreshToken: expect.any(String) });

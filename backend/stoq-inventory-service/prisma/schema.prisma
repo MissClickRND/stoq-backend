@@ -47,6 +47,7 @@ model Batch {
   supplyId        Int           @map("supply_id")
   productId       Int           @map("product_id")
   initialQuantity Decimal       @map("initial_quantity") @db.Decimal
+  disposedAt      DateTime?     @map("disposed_at") @db.Timestamptz(6)
   price           Decimal?      @db.Decimal(18, 6)
   expiresAt       DateTime      @map("expires_at") @db.Timestamptz(6)
   status          BatchStatus   @default(ACTIVE)
@@ -76,6 +77,9 @@ model BatchBalance {
 
 model StockMovement {
   restaurantId Int?
+  actorId Int?
+  actorName String?
+  actorRole String?
 
   id        Int      @id @default(autoincrement())
   orderId   String   @map("order_id")

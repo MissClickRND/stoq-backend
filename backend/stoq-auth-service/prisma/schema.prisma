@@ -62,6 +62,7 @@ model Invitation {
 
 model ActivityLog {
   id String @id
+  stockMovementId Int?
   restaurantId Int
   authorId Int?
   authorName String
@@ -75,4 +76,10 @@ model ActivityLog {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([restaurantId, createdAt, id])
+  @@unique([restaurantId, stockMovementId])
+}
+
+model ActivitySyncState {
+  restaurantId Int @id
+  stockMovementId Int @default(0)
 }

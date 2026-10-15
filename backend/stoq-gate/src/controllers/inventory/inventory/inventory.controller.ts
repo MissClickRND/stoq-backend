@@ -11,6 +11,8 @@ import {
   HttpException,
   Put,
   Query,
+  Delete,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -172,11 +174,18 @@ export class InventoryController {
 
   @Post(':batchId/write-off')
   @ApiOperation({ summary: 'Списать доступный остаток складской партии' })
-  async writeOff(@Param('batchId', ParseIntPipe) batchId: number) {
+  async writeOff(@Param('batchId', ParseIntPipe) batchId: number, @Req() req?: any) {
     return this.handleRpcResponse(await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS, ROUTING_KEYS.UPDATE_QUANTITY_INVENTORY,
-      { dto: { items: [{ batchId, quantity: 0 }] }, operation: 'WRITE_OFF' },
+      { dto: { items: [{ batchId, quantity: 0 }] }, operation: 'WRITE_OFF', ...(req?.user ? { actor: { id: req.user.id, name: req.user.fullName, role: req.user.role } } : {}) },
     ));
+  }
+
+  @Delete('write-offs/:batchId')
+  @ApiOperation({ summary: 'Убрать утилизированную партию из списка просрочки, сохранив историю' })
+  async dispose(@Param('batchId', ParseIntPipe) batchId: number) {
+    return this.handleRpcResponse(await this.commandBusService.sendCommand(EXCHANGES.COMMANDS,
+      ROUTING_KEYS.DISPOSE_INVENTORY_BATCH, { batchId }));
   }
 
   @Put()
@@ -187,8 +196,8 @@ export class InventoryController {
     description: 'Количество успешно обновлено',
   })
   @ApiNotFoundResponse({ description: 'Партия не найдена' })
-  async updateQuantity(@Body() dto: UpdateQuantityDto) {
-    const payload = { dto: dto };
+  async updateQuantity(@Body() dto: UpdateQuantityDto, @Req() req?: any) {
+    const payload = { dto, ...(req?.user ? { actor: { id: req.user.id, name: req.user.fullName, role: req.user.role } } : {}) };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.UPDATE_QUANTITY_INVENTORY,

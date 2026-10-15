@@ -18,10 +18,11 @@ export class AuditRPCController {
   }
 
   @RabbitRPC({ exchange: EXCHANGES.COMMANDS, queue: QUEUES.AUTH_COMMANDS, routingKey: ROUTING_KEYS.AUTH_GET_ACTIVITY })
-  list(payload: { accessToken: string; cursor?: string }) {
+  list(payload: { accessToken: string; cursor?: string; source?: 'STOCK'; afterId?: number }) {
     return executeRpc(async () => {
       const user = await this.auth.verifyAccessToken(payload?.accessToken);
       if (!['ADMIN', 'MANAGER'].includes(user.role)) throw new ForbiddenException('Недостаточно прав');
+      if (payload.source === 'STOCK') return this.audit.stockCursor(user.restaurantId, payload.afterId);
       return this.audit.list(user.restaurantId, payload.cursor);
     });
   }

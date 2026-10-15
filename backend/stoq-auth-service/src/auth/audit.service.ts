@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 export interface ActivityEvent {
   id: string; action: string; category: string; title: string; description: string;
   object?: string; detail?: string; timestamp?: string;
+  stockMovementId?: number;
+  legacyId?: string;
 }
 export interface ActivityActor { id: number | null; fullName: string; role: string }
 
@@ -25,12 +27,32 @@ export class AuditService {
     }
     const date = event.timestamp ? new Date(event.timestamp) : new Date();
     if (!Number.isFinite(date.getTime())) throw new BadRequestException('Некорректное время события');
-    // Explicit fields only: request bodies, credentials and invitation URLs are never stored.
-    return this.prisma.activityLog.upsert({ where: { id: event.id }, update: {}, create: {
+    const stockMovementId = event.stockMovementId;
+    if (stockMovementId != null && (!Number.isSafeInteger(stockMovementId) || stockMovementId < 1)) throw new BadRequestException('Некорректное движение склада');
+    // Attach old HTTP/expiry records to their movement instead of duplicating historical entries.
+    if (stockMovementId != null) {
+      const existing = await this.prisma.activityLog.findFirst({ where: { restaurantId, stockMovementId } });
+      if (existing) return existing;
+      const legacy = event.action === 'automatic' || event.title === 'Списаны продукты' ? await this.prisma.activityLog.findFirst({ where: { restaurantId, stockMovementId: null, category: 'Склад',
+        ...(event.action === 'automatic' ? { id: event.legacyId ?? 'NO_LEGACY_ID' } :
+          { title: 'Списаны продукты', object: event.object, createdAt: { gte: new Date(date.getTime() - 2000), lte: new Date(date.getTime() + 120000) } }) }, orderBy: { createdAt: 'asc' } }) : null;
+      if (legacy) return this.prisma.activityLog.update({ where: { id: legacy.id }, data: { stockMovementId } });
+    }
+    return this.prisma.activityLog.upsert({ where: stockMovementId == null ? { id: event.id } : { restaurantId_stockMovementId: { restaurantId, stockMovementId } }, update: {}, create: {
       id: event.id, restaurantId, authorId: actor.id, authorName: actor.fullName, authorRole: actor.role,
+      stockMovementId: stockMovementId ?? null,
       action: event.action, category: event.category, title: event.title, description: event.description,
       object: event.object?.slice(0, 1000) ?? null, detail: event.detail?.slice(0, 1000) ?? null, createdAt: date,
     } });
+  }
+
+  async stockCursor(restaurantId: number, afterId?: number) {
+    if (afterId != null) {
+      if (!Number.isSafeInteger(afterId) || afterId < 0) throw new BadRequestException('Некорректный курсор движений');
+      await this.prisma.activitySyncState.upsert({ where: { restaurantId }, create: { restaurantId, stockMovementId: 0 }, update: {} });
+      await this.prisma.activitySyncState.updateMany({ where: { restaurantId, stockMovementId: { lt: afterId } }, data: { stockMovementId: afterId } });
+    }
+    return { stockCursor: (await this.prisma.activitySyncState.findUnique({ where: { restaurantId } }))?.stockMovementId ?? 0 };
   }
 
   async list(restaurantId: number, cursor?: string) {

@@ -7,7 +7,7 @@ function setup(quantity: number, reserved = 0) {
     batch: { findUnique: jest.fn(async () => ({ id: 9, productId: 7, status: 'ACTIVE',
       balance: { availableQuantity: new Prisma.Decimal(quantity), reservedQuantity: new Prisma.Decimal(reserved) } })), update: jest.fn() },
     batchBalance: { updateMany: jest.fn(async () => ({ count: 1 })) },
-    stockMovement: { create: jest.fn() },
+    stockMovement: { create: jest.fn(async () => ({ id: 25 })) },
   };
   const prisma: any = { $transaction: jest.fn(async (fn) => fn(tx)) };
   const bus: any = { publishEvent: jest.fn() };
@@ -21,7 +21,7 @@ describe('warehouse write-off', () => {
     expect(result.availableQuantity).toBe(0);
     expect(tx.batchBalance.updateMany.mock.calls[0][0].where.batchId).toBe(9);
     expect(Number(tx.stockMovement.create.mock.calls[0][0].data.quantity)).toBe(-2.5);
-    expect(result).toEqual({ batchId: 9, availableQuantity: 0, writtenOffQuantity: 2.5 });
+    expect(result).toEqual({ batchId: 9, availableQuantity: 0, writtenOffQuantity: 2.5, movementId: 25 });
     expect(bus.publishEvent).toHaveBeenCalledWith('app.events', 'inventory.stock.changed', expect.objectContaining({
       reason: 'MANUAL_WRITE_OFF', productIds: [7], batchIds: [9],
     }));

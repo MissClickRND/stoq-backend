@@ -12,7 +12,7 @@ describe('demo restaurant endpoints', () => {
     const demo = { seed: jest.fn().mockResolvedValue({ products: 6 }) };
     const controller = new DemoRestaurantController(auth as any, demo as any, new ConfigService());
     const result = await controller.create(request);
-    expect(demo.seed).toHaveBeenCalledWith(77);
+    expect(demo.seed).toHaveBeenCalledWith(77, []);
     expect(auth.request).toHaveBeenLastCalledWith(ROUTING_KEYS.AUTH_COMPLETE_DEMO_RESTAURANT, { accessToken: 'actor', restaurantId: 77 });
     expect(result.data.products).toBe(6);
   });

@@ -232,6 +232,7 @@ export class OrdersService {
   private async deductStock(
     orderId: number,
     inventoryItems: InventoryItem[],
+    creator?: OrderCreator,
   ) {
     let response: any;
     try {
@@ -243,6 +244,7 @@ export class OrdersService {
             idempotencyKey: `order-${orderId}-deduction`,
             orderId: String(orderId),
             items: inventoryItems,
+              actor: creator,
           },
         },
       );
@@ -316,7 +318,7 @@ export class OrdersService {
     );
     if (items.length) {
       try {
-        await this.deductStock(order.id, this.toInventoryItems(resolvedItems));
+        await this.deductStock(order.id, this.toInventoryItems(resolvedItems), creator);
       } catch (error) {
         // Timeouts are ambiguous: keep pending until stock is reconciled.
         if (error instanceof HttpException && error.getStatus() < 500) {
@@ -346,9 +348,6 @@ export class OrdersService {
   async findAll() {
     const orders = await this.prisma.order.findMany({
       where: { restaurantId: restaurantId(),
-        status: {
-          notIn: [OrderStatus.rejected, OrderStatus.cancelled],
-        },
       },
       include: {
         items: true,

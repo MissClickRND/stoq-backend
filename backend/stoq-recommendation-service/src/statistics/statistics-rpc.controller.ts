@@ -32,8 +32,8 @@ export class StatisticsRPCController {
     routingKey: ROUTING_KEYS.GET_DISH_STATISTICS,
     queue: QUEUES.RECOMMENDATION_COMMANDS,
   })
-  getDishesStatistics() {
-    return executeRpc(() => this.statisticsService.getDishesStatistics());
+  getDishesStatistics(payload: { forceRefresh?: boolean } = {}) {
+    return executeRpc(() => this.statisticsService.getDishesStatistics(payload.forceRefresh === true));
   }
 
   @RabbitRPC({

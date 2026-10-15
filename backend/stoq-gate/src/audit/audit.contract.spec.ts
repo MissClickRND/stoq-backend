@@ -60,4 +60,15 @@ describe('Verified authors and activity HTTP integration', () => {
     await request(app.getHttpServer()).get('/logs?cursor=next').set('Authorization', 'Bearer MANAGER').expect(200, { items: [], nextCursor: null });
     expect(sendCommand).toHaveBeenLastCalledWith('app.commands', 'command.auth.get_activity', { accessToken: 'MANAGER', cursor: 'next' });
   });
+  it('imports committed order consumption once by movement id before returning the first page', async () => {
+    sendCommand.mockImplementation(async (_e, key, payload) => {
+      if (key === 'command.auth.verify_access') return { success: true, data: { id: 4, restaurantId: 7, fullName: 'Иван', role: 'ADMIN' } };
+      if (key === 'command.auth.get_activity') return { success: true, data: payload.source === 'STOCK' ? { stockCursor: 10 } : { items: [], nextCursor: null } };
+      if (key === 'command.inventory.get_movement_history') return { success: true, data: { hasMore: false, items: [{ id: 11, batchId: 2, orderId: '15', type: 'DEDUCTION', quantity: -.5, product: { name: 'Молоко', unit: { shortName: 'л' } }, timestamp: new Date().toISOString(), actor: { id: 4, name: 'Иван', role: 'WAITER' } }] } };
+      return { success: true, data: { ok: true } };
+    });
+    await request(app.getHttpServer()).get('/logs').set('Authorization','Bearer ADMIN').expect(200);
+    expect(sendCommand.mock.calls.find(c => c[1] === 'command.auth.append_activity')[2]).toMatchObject({ restaurantId: 7, actor: { id: 4, fullName: 'Иван' }, event: { stockMovementId: 11, title: 'Списаны ингредиенты заказа', detail: 'Молоко: списано 0.5 л' } });
+    expect(sendCommand.mock.calls.some(c => c[1] === 'command.auth.get_activity' && c[2].afterId === 11)).toBe(true);
+  });
 });

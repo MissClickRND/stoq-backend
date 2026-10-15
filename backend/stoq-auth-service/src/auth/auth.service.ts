@@ -461,17 +461,28 @@ export class AuthService {
         return this.prisma.$transaction(async (tx) => {
             const restaurant = await tx.restaurant.create({ data: { name: `Демо-ресторан ${suffix.slice(0, 8)}`, address: 'Демонстрационные данные', isDemo: true }, select: { id: true, name: true, address: true, isDemo: true, demoReady: true } });
             const accounts: AuthUser[] = [];
-            for (const role of ACTIVE_ROLES) {
-                accounts.push(await tx.user.create({ data: { fullName: `Демо ${role}`, email: `demo-${suffix}-${role.toLowerCase()}@example.invalid`, passwordHash, role, restaurantId: restaurant.id }, select: accountSelect }));
+            const roles: Role[] = [...ACTIVE_ROLES, Role.MANAGER, Role.WAITER, Role.WAITER, Role.STOREKEEPER, Role.WAIT_CONFIRM, Role.WAIT_CONFIRM];
+            const names = ['Анна Демина', 'Иван Петров', 'Мария Волкова', 'Артём Смирнов', 'Елена Орлова', 'Павел Соколов', 'Ольга Кузнецова', 'Дмитрий Лебедев', 'Софья Морозова', 'Максим Новиков'];
+            const employees: AuthUser[] = [];
+            for (const [index, role] of roles.entries()) {
+                const user = await tx.user.create({ data: { fullName: names[index], email: `demo-${suffix}-${index}@example.invalid`, passwordHash, role, blocked: index === 6, restaurantId: restaurant.id }, select: accountSelect });
+                employees.push(user);
+                if (index < ACTIVE_ROLES.length) accounts.push(user);
             }
+            await tx.invitation.createMany({ data: Array.from({ length: 10 }, (_, index) => ({ restaurantId: restaurant.id, role: ACTIVE_ROLES[index % ACTIVE_ROLES.length],
+                expiresAt: new Date(Date.now() + (index + 1) * 86400000), revokedAt: index === 8 ? new Date() : null, usedAt: index === 9 ? new Date() : null })) });
+            await tx.activityLog.createMany({ data: [
+                ...employees.map(employee => ({ id: randomUUID(), restaurantId: restaurant.id, authorId: accounts[0].id, authorName: accounts[0].fullName, authorRole: 'ADMIN', action: 'create', category: 'Сотрудники', title: 'Создан демо-сотрудник', description: 'Создан аккаунт для демонстрации работы ресторана.', object: `${employee.fullName} · ${employee.role}` })),
+                ...Array.from({ length: 10 }, (_, index) => ({ id: randomUUID(), restaurantId: restaurant.id, authorId: accounts[0].id, authorName: accounts[0].fullName, authorRole: 'ADMIN', action: 'invite', category: 'Приглашения', title: 'Создано демо-приглашение', description: 'Создано приглашение для демонстрации регистрации сотрудников.', object: `Роль: ${ACTIVE_ROLES[index % ACTIVE_ROLES.length]}` })),
+            ] });
             return { restaurant, accounts };
         });
     }
 
     async listDemoRestaurants() {
         this.requireDemoRestaurants();
-        const restaurants = await this.prisma.restaurant.findMany({ where: { isDemo: true, demoReady: true }, select: { id: true, name: true, address: true, isDemo: true, users: { where: { blocked: false, role: { in: ACTIVE_ROLES } }, select: accountSelect } }, orderBy: { createdAt: 'desc' } });
-        return restaurants.map(({ users, ...restaurant }) => ({ ...restaurant, accounts: users }));
+        const restaurants = await this.prisma.restaurant.findMany({ where: { isDemo: true, demoReady: true }, select: { id: true, name: true, address: true, isDemo: true, users: { where: { blocked: false, role: { in: ACTIVE_ROLES } }, orderBy: { id: 'asc' }, select: accountSelect } }, orderBy: { createdAt: 'desc' } });
+        return restaurants.map(({ users, ...restaurant }) => ({ ...restaurant, accounts: users.filter((user, index) => users.findIndex(other => other.role === user.role) === index) }));
     }
 
     async demoLogin(restaurantId: number, role: Role) {

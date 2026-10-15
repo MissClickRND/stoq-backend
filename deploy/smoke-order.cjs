@@ -64,7 +64,7 @@ async function main() {
         await clean('inventory',['DELETE FROM inventory.stock_movements WHERE "restaurantId"=$1','DELETE FROM inventory.idempotency_keys WHERE "restaurantId"=$1','DELETE FROM inventory.batch_balances WHERE batch_id IN (SELECT id FROM inventory.batches WHERE "restaurantId"=$1)','DELETE FROM inventory.batches WHERE "restaurantId"=$1','DELETE FROM supply.supply_items WHERE supply_id IN (SELECT id FROM supply.supplies WHERE "restaurantId"=$1)','DELETE FROM supply.supplies WHERE "restaurantId"=$1']);
         await clean('recommendation',['DELETE FROM "ShortageIncident" WHERE "restaurantId"=$1','DELETE FROM "DishAvailability" WHERE "restaurantId"=$1','DELETE FROM "ShortageTracking" WHERE "restaurantId"=$1','DELETE FROM "StopListItem" WHERE "restaurantId"=$1']);
         await clean('catalog',['DELETE FROM "RecipeItem" WHERE "dishId" IN (SELECT id FROM "Dish" WHERE "restaurantId"=$1)','DELETE FROM "Dish" WHERE "restaurantId"=$1','DELETE FROM "Product" WHERE "restaurantId"=$1','DELETE FROM "Unit" WHERE "restaurantId"=$1']);
-        await clean('auth',['DELETE FROM "ActivityLog" WHERE "restaurantId"=$1','DELETE FROM "User" WHERE "restaurantId"=$1','DELETE FROM "Restaurant" WHERE id=$1']);
+        await clean('auth',['DELETE FROM "ActivitySyncState" WHERE "restaurantId"=$1','DELETE FROM "ActivityLog" WHERE "restaurantId"=$1','DELETE FROM "User" WHERE "restaurantId"=$1','DELETE FROM "Restaurant" WHERE id=$1']);
         console.log('PASS temporary order verification data removed');
       }
     } finally { await Promise.all([...clients.values()].map(client=>client.end())); }

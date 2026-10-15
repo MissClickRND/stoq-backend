@@ -19,6 +19,7 @@ import {
 import { BatchStatus, Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/client";
 import { randomUUID } from "node:crypto";
+type StockActor = { id: number | null; name: string; role: string | null; source?: string };
 
 @Injectable()
 export class InventoryService {
@@ -53,10 +54,12 @@ export class InventoryService {
     const expirationHistory = await this.prisma.stockMovement.findMany({
       where: { restaurantId: restaurantId(), OR: [
         { type: 'WRITE_OFF', orderId: 'SYSTEM_EXPIRATION' }, { type: 'SYSTEM_EXPIRATION' },
-      ] }, select: { productId: true }, distinct: ['productId'],
+      ] }, select: { productId: true, batchId: true },
     });
-    const spoiled = new Set(expirationHistory.map(movement => movement.productId));
+    const disposed = new Set(batches.filter(b => b.disposedAt).map(b => b.id));
+    const spoiled = new Set(expirationHistory.filter(movement => !disposed.has(movement.batchId)).map(movement => movement.productId));
     for (const batch of batches) {
+      if (batch.disposedAt) continue;
       const quantity = batch.balance?.availableQuantity ?? new Decimal(0);
       if (batch.status === BatchStatus.EXPIRED ||
         (batch.expiresAt <= now && quantity.greaterThan(0) &&
@@ -85,7 +88,7 @@ export class InventoryService {
     });
     const automaticBatchIds = movements.filter(m => m.orderId === 'SYSTEM_EXPIRATION' || m.type === 'SYSTEM_EXPIRATION').map(m => m.batchId);
     const batches = await this.prisma.batch.findMany({
-      where: { restaurantId: restaurantId(), OR: [
+      where: { restaurantId: restaurantId(), disposedAt: null, OR: [
         { status: BatchStatus.EXPIRED },
         { expiresAt: { lte: now }, status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] }, balance: { availableQuantity: { gt: 0 } } },
         { id: { in: automaticBatchIds } },
@@ -101,7 +104,7 @@ export class InventoryService {
     const products = await this.getCatalogProducts();
     const productsById = new Map(products.map(p => [p.id, p]));
     const automaticIds = new Set(automaticBatchIds);
-    return batches.filter(b => !cancelledIds.has(b.supplyId) && (
+    return batches.filter(b => !b.disposedAt && !cancelledIds.has(b.supplyId) && (
       b.status === BatchStatus.EXPIRED || automaticIds.has(b.id) ||
       (b.expiresAt <= now && [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT].includes(b.status as any) && Number(b.balance?.availableQuantity ?? 0) > 0)
     )).map(batch => {
@@ -117,6 +120,38 @@ export class InventoryService {
         expiresAt: batch.expiresAt.toISOString(), reason: 'EXPIRED' as const,
       };
     });
+  }
+
+  async disposeBatch(batchId: number) {
+    if (!Number.isSafeInteger(batchId) || batchId < 1) throw new BadRequestException('Некорректный ID партии');
+    return this.prisma.$transaction(async tx => {
+      const batch = await tx.batch.findUnique({ where: { restaurantId: restaurantId(), id: batchId }, include: { balance: true } });
+      if (!batch) throw new NotFoundException('Партия не найдена');
+      if (batch.disposedAt) return { batchId, disposedAt: batch.disposedAt.toISOString(), alreadyDisposed: true };
+      if (batch.status !== BatchStatus.EXPIRED || !batch.balance || !batch.balance.availableQuantity.isZero() || !batch.balance.reservedQuantity.isZero())
+        throw new ConflictException('Сначала дождитесь автоматического списания просроченной партии');
+      const disposedAt = new Date();
+      const changed = await tx.batch.updateMany({ where: { restaurantId: restaurantId(), id: batchId,
+        status: BatchStatus.EXPIRED, disposedAt: null, balance: { availableQuantity: 0, reservedQuantity: 0 } }, data: { disposedAt } });
+      if (!changed.count) throw new ConflictException('Партия изменилась. Обновите список');
+      return { batchId, disposedAt: disposedAt.toISOString(), alreadyDisposed: false };
+    });
+  }
+
+  async getMovementHistory(afterId = 0) {
+    if (!Number.isSafeInteger(afterId) || afterId < 0) throw new BadRequestException('Некорректный курсор движений');
+    const rows = await this.prisma.stockMovement.findMany({ where: { restaurantId: restaurantId(), id: { gt: afterId }, quantity: { lt: 0 } }, orderBy: { id: 'asc' }, take: 101 });
+    const products = rows.length ? await this.getCatalogProducts() : [];
+    return { items: rows.slice(0, 100).map(row => ({ id: row.id, batchId: row.batchId, productId: row.productId,
+      product: products.find(p => p.id === row.productId) ?? { id: row.productId, name: `Продукт №${row.productId}`, unit: null },
+      orderId: row.orderId, type: row.type, quantity: Number(row.quantity), timestamp: row.createdAt.toISOString(),
+      actor: { id: row.actorId ?? null, name: row.actorName ?? null, role: row.actorRole ?? null } })),
+      hasMore: rows.length > 100 };
+  }
+
+  private actorFields(actor?: StockActor) {
+    return { actorId: actor?.id ?? null, actorName: actor?.name ?? null,
+      actorRole: actor?.role ?? (actor?.source === 'GUEST' ? 'GUEST' : actor?.source === 'SYSTEM' ? 'SYSTEM' : null) };
   }
 
   private validateInventoryItems(dto: UpdateQuantityDto) {
@@ -309,7 +344,7 @@ export class InventoryService {
     return enrichedBatches;
   }
 
-  async updateQuantity(dto: UpdateQuantityDto) {
+  async updateQuantity(dto: UpdateQuantityDto, actor?: StockActor) {
     this.validateInventoryItems(dto);
     const batchIds = dto.items.map((item) => item.batchId);
 
@@ -341,6 +376,11 @@ export class InventoryService {
       for (const item of dto.items) {
         const newQty = new Decimal(item.remove ? 0 : item.quantity);
         const currentStatus = statusMap.get(item.batchId);
+        const batch = batches.find(b => b.id === item.batchId)!;
+        const delta = newQty.minus(batch.balance!.availableQuantity);
+        if (!delta.isZero()) await tx.stockMovement.create({ data: { restaurantId: restaurantId(),
+          orderId: 'INVENTORY_ADJUSTMENT', batchId: batch.id, productId: batch.productId, quantity: delta,
+          type: 'INVENTORY_ADJUSTMENT', ...this.actorFields(actor) } });
 
         updates.push(
           tx.batchBalance.update({
@@ -377,7 +417,7 @@ export class InventoryService {
       : result.updates;
   }
 
-  async writeOffBatch(batchId: number) {
+  async writeOffBatch(batchId: number, actor?: StockActor) {
     if (!Number.isSafeInteger(batchId) || batchId < 1)
       throw new BadRequestException("Некорректный ID партии");
     const result = await this.prisma.$transaction(async (tx) => {
@@ -406,8 +446,9 @@ export class InventoryService {
           where: { restaurantId: restaurantId(),  id: batchId },
           data: { status: BatchStatus.DEPLETED },
         });
-      await tx.stockMovement.create({
+      const movement = await tx.stockMovement.create({
         data: { restaurantId: restaurantId(),
+          ...this.actorFields(actor),
           orderId: "manual-write-off",
           batchId,
           productId: batch.productId,
@@ -420,6 +461,7 @@ export class InventoryService {
         productId: batch.productId,
         availableQuantity: 0,
         writtenOffQuantity: Number(quantity),
+        movementId: movement.id,
       };
     });
     const { productId, ...response } = result;
@@ -581,6 +623,7 @@ export class InventoryService {
           }
 
           movementsToCreate.push({
+            ...this.actorFields(dto.actor),
             orderId: dto.orderId,
             batchId: batch.id,
             productId: item.productId,

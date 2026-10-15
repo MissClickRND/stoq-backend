@@ -30,15 +30,15 @@ export class DemoRestaurantController {
   }
 
   @Post('restaurant')
-  @ApiOperation({ summary: 'Создать отдельный демо-ресторан, данные и по одному сотруднику каждой роли' })
+  @ApiOperation({ summary: 'Создать демо-ресторан: по 10 продуктов, блюд, поставок, заказов, сотрудников и приглашений' })
   async create(@Req() req: Request) {
     this.enabled();
     const accessToken = accessTokenFrom(req.headers, req.cookies);
-    const result = await this.auth.request<{ restaurant: { id: number; name: string }; accounts: unknown[] }>(
+    const result = await this.auth.request<{ restaurant: { id: number; name: string }; accounts: { id: number; fullName: string; role: string }[] }>(
       ROUTING_KEYS.AUTH_CREATE_DEMO_RESTAURANT, { accessToken },
     );
     try {
-      const data = await this.demo.seed(result.restaurant.id);
+      const data = await this.demo.seed(result.restaurant.id, result.accounts);
       await this.auth.request(ROUTING_KEYS.AUTH_COMPLETE_DEMO_RESTAURANT, { accessToken, restaurantId: result.restaurant.id });
       return { ...result, data, message: 'Тестовый ресторан создан и заполнен. Доступен вход под каждой ролью.' };
     } catch (error) {

@@ -59,7 +59,7 @@ describe('Server statistics HTTP contracts', () => {
   it('forwards preview and optional report flags while retaining the legacy update shape', async () => {
     const dto = { items: [{ batchId: 2, quantity: 0, remove: true }], includeReport: true };
     await request(app.getHttpServer()).put('/inventory').set('Authorization', 'Bearer ADMIN').send(dto).expect(200);
-    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', 'command.inventory.update_quantity_inventory', { dto });
+    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', 'command.inventory.update_quantity_inventory', { dto, actor: { id: 1, name: 'User', role: 'ADMIN' } });
     const preview = { items: [{ batchId: 2, quantity: 1 }] };
     await request(app.getHttpServer()).post('/inventory/preview').set('Authorization', 'Bearer ADMIN').send(preview).expect(201);
     expect(sendCommand).toHaveBeenLastCalledWith('app.commands', 'command.inventory.preview', { dto: preview });

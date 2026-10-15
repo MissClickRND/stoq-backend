@@ -17,6 +17,12 @@ import {
 export class InventoryRPCController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_STOCK_MOVEMENT_HISTORY, queue: QUEUES.INVENTORY_COMMANDS })
+  movements(payload: { afterId?: number }) { return executeRpc(() => this.inventoryService.getMovementHistory(payload.afterId)); }
+
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.DISPOSE_INVENTORY_BATCH, queue: QUEUES.INVENTORY_COMMANDS })
+  dispose(payload: { batchId: number }) { return executeRpc(() => this.inventoryService.disposeBatch(payload.batchId)); }
+
   @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_INVENTORY_STATISTICS, queue: QUEUES.INVENTORY_COMMANDS })
   statistics() {
     return executeRpc(() => this.inventoryService.getStatistics());
@@ -64,11 +70,11 @@ export class InventoryRPCController {
     routingKey: ROUTING_KEYS.UPDATE_QUANTITY_INVENTORY,
     queue: QUEUES.INVENTORY_COMMANDS,
   })
-  updateQuantity(payload: { dto: UpdateQuantityDto; operation?: 'WRITE_OFF' }) {
+  updateQuantity(payload: { dto: UpdateQuantityDto; operation?: 'WRITE_OFF'; actor?: { id: number | null; name: string; role: string | null; source?: string } }) {
     if (payload.operation === 'WRITE_OFF') {
-      return executeRpc(() => this.inventoryService.writeOffBatch(payload.dto.items[0]?.batchId));
+      return executeRpc(() => this.inventoryService.writeOffBatch(payload.dto.items[0]?.batchId, payload.actor));
     }
-    return executeRpc(() => this.inventoryService.updateQuantity(payload.dto));
+    return executeRpc(() => this.inventoryService.updateQuantity(payload.dto, payload.actor));
   }
 
   @RabbitRPC({

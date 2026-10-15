@@ -18,7 +18,7 @@ function setup(batches: any[] = []) {
       findMany: jest.fn(async () => batches.map(b => ({ batchId: b.id, ...b.balance }))),
       update: jest.fn(async ({ where, data }) => ({ batchId: where.batchId, ...data })),
     },
-    stockMovement: { findMany: jest.fn(async () => []) },
+    stockMovement: { findMany: jest.fn(async () => []), create: jest.fn(async ({ data }) => ({ id: 900, ...data })) },
     supply: { findMany: jest.fn(async () => []) },
   };
   const prisma: any = { ...tx, $transaction: jest.fn(async fn => fn(tx)) };

@@ -10,6 +10,7 @@ export function activityEvent(method: string, path: string, body: any, result: a
       typeof body?.supplier === 'string' ? `Поставщик: ${body.supplier.slice(0, 200)}` : undefined);
   }
   if (path === '/inventory' && method === 'PUT') return event('Склад', 'Проведена инвентаризация', `Проверено партий: ${Array.isArray(body?.items) ? body.items.length : 0}`);
+  if (/^\/inventory\/write-offs\/\d+$/.test(path) && method === 'DELETE') return result?.alreadyDisposed ? null : event('Склад', 'Утилизирована просроченная партия', `Партия №${id}`);
   if (/^\/inventory\/\d+\/write-off$/.test(path)) return result?.writtenOffQuantity === 0 ? null : event('Склад', 'Списаны продукты', `Партия №${id}`, typeof result?.writtenOffQuantity === 'number' ? `Списанное количество: ${result.writtenOffQuantity}` : undefined);
   if (path === '/auth/admin/invitations' && method === 'POST') return { ...event('Приглашения', 'Создано приглашение сотрудника'), action: 'invite' };
   if (/^\/auth\/admin\/invitations\/[^/]+(?:\/revoke)?$/.test(path)) return event('Приглашения', method === 'DELETE' ? 'Удалено приглашение сотрудника' : 'Отозвано приглашение сотрудника');

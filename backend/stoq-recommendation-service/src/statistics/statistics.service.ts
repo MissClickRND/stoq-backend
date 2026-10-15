@@ -99,8 +99,8 @@ export class StatisticsService {
     return this.shortageTracker.statistics(days);
   }
 
-  async getDishesStatistics() {
-    const dishes = await this.recommendationService.getDishStatuses();
+  async getDishesStatistics(forceRefresh = false) {
+    const dishes = await this.recommendationService.getDishStatuses(forceRefresh);
 
     return {
       total: dishes.length,

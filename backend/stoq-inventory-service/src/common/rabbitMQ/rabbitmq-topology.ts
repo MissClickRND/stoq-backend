@@ -16,6 +16,8 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  GET_STOCK_MOVEMENT_HISTORY: "command.inventory.get_movement_history",
+  DISPOSE_INVENTORY_BATCH: "command.inventory.dispose_batch",
   UPDATE_SUPPLY: "command.inventory.update_supply",
   RESET_INVENTORY_DATA: "command.inventory.reset_business_data",
   RESET_CATALOG_DATA: "command.catalog.reset_business_data",
