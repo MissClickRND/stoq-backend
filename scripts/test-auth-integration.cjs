@@ -110,7 +110,7 @@ async function main() {
     const login = await api('POST', '/auth/login', { email, password });
     await api('GET', '/auth/status', undefined, login.cookies);
     await api('GET', '/supplies', undefined, login.cookies);
-    await api('GET', '/inventory', undefined, login.cookies, role === 'STOREKEEPER' ? 403 : 200);
+    await api('GET', '/inventory', undefined, login.cookies, 200);
     await api('GET', '/statistics/dishes', undefined, login.cookies, role === 'MANAGER' ? 200 : 403);
     await api('GET', '/auth/admin/users/pending', undefined, login.cookies, 403);
     if (role === 'WAITER') {

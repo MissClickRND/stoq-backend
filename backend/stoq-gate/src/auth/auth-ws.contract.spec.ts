@@ -92,14 +92,17 @@ describe('Socket.IO authentication', () => {
   });
 
   it.each(['/inventory', '/recommendations'])(
-    'refuses anonymous and storekeeper connections to %s',
+    'refuses anonymous connections to %s',
     async (namespace) => {
       expect((await connect(namespace)).reply).toMatch(/^44/);
-      expect((await connect(namespace, 'STOREKEEPER')).reply).toMatch(/^44/);
     },
   );
 
-  it.each(['ADMIN', 'MANAGER', 'WAITER'])(
+  it('refuses storekeeper access to recommendations', async () => {
+    expect((await connect('/recommendations', 'STOREKEEPER')).reply).toMatch(/^44/);
+  });
+
+  it.each(['ADMIN', 'MANAGER', 'WAITER', 'STOREKEEPER'])(
     'accepts %s before subscribing to broadcasts',
     async (role) => {
       expect((await connect('/inventory', role)).reply).toMatch(

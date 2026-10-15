@@ -3,7 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AuthService } from './auth.service';
 import { accessTokenFrom } from './access-token';
-import { OPERATIONS } from './auth.types';
+import { OPERATIONS, STAFF } from './auth.types';
 import { corsOptions } from '../cors-options';
 
 export class AuthIoAdapter extends IoAdapter {
@@ -32,7 +32,8 @@ export class AuthIoAdapter extends IoAdapter {
           const user = await this.auth.verifyAccess(
             typeof token === 'string' ? token : undefined,
           );
-          if (!OPERATIONS.includes(user.role))
+          const roles = options.namespace === '/inventory' ? STAFF : OPERATIONS;
+          if (!roles.includes(user.role))
             throw new ForbiddenException('Недостаточно прав');
           socket.data.user = user;
         };
