@@ -93,6 +93,20 @@ test("login deletes password before RPC, encrypts only returned session and reje
   assert.equal(cipher.decrypt(state.binding.encrypted_session, "10"), "secret");
   assert.equal(state.calls[0][0], "command.auth.telegram_login");
 });
+test("emoji menu buttons keep working alongside the previous keyboard", async () => {
+  const { engine, state } = setup();
+  state.binding = bound();
+  await engine.handle(update('/start'));
+  const keyboard = state.sent.at(-1)[2].reply_markup.keyboard.flat().map((b: any) => b.text);
+  assert.deepEqual(keyboard, ['📊 Сводка сейчас', '🔔 Уведомления', '🗓 Ежедневная сводка', '🚪 Выйти']);
+  await engine.handle(update('📊 Сводка сейчас'));
+  await engine.handle(update('Сводка сейчас'));
+  assert.equal(state.intents.length, 2);
+  await engine.handle(update('🔔 Уведомления'));
+  assert.ok(state.sent.at(-1)[2].reply_markup.inline_keyboard[0][0].text.startsWith('✅'));
+  await engine.handle(update('🗓 Ежедневная сводка'));
+  assert.equal(state.sent.at(-1)[2].reply_markup.inline_keyboard[0][0].text, '🔔 Включить');
+});
 test("summary revalidates current session and tenant before queueing; transient outage preserves binding", async () => {
   const { engine, state, bus } = setup();
   state.binding = bound();
@@ -209,9 +223,11 @@ test("summary respects real inventory array contracts and preserves unknown fina
     attempts: 0,
   } as any);
   assert.match(rendered!, /Egg/);
-  assert.match(rendered!, /Выручка: нет данных/);
-  assert.match(rendered!, /заканчиваются: 1/);
-  assert.match(rendered!, /ожидает утилизации: 1/);
+  assert.match(rendered!, /<b>📊 Сводка STOQ<\/b>/);
+  assert.match(rendered!, /📅 15\.10\.2026 · МСК/);
+  assert.match(rendered!, /Выручка — <b>нет данных<\/b> ₽/);
+  assert.match(rendered!, /Заканчиваются: <b>1<\/b>/);
+  assert.match(rendered!, /ожидает утилизации: <b>1<\/b>/);
 });
 test("logout blocks pending delivery immediately when revocation service is unavailable", async () => {
   const { engine, state, store, bus } = setup();

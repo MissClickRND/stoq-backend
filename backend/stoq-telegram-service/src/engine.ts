@@ -14,23 +14,27 @@ import { restaurantStorage } from "./common/tenant/restaurant-context";
 const MENU = {
   reply_markup: {
     keyboard: [
-      [{ text: "Сводка сейчас" }],
-      [{ text: "Уведомления" }, { text: "Ежедневная сводка" }],
-      [{ text: "Выйти" }],
+      [{ text: "📊 Сводка сейчас" }],
+      [{ text: "🔔 Уведомления" }, { text: "🗓 Ежедневная сводка" }],
+      [{ text: "🚪 Выйти" }],
     ],
     resize_keyboard: true,
   },
 };
 const labels: Record<string, string> = {
-  stock: "Поставки и остатки",
-  writeoff: "Списания и инвентаризация",
-  expiry: "Истечение срока",
-  status: "Стоп-лист и восстановление",
+  stock: "📦 Поставки и остатки",
+  writeoff: "📝 Списания и инвентаризация",
+  expiry: "⏳ Истечение срока",
+  status: "🍽 Стоп-лист и восстановление",
 };
 const amount = (n: unknown) =>
   typeof n === "number" && Number.isFinite(n)
     ? new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(n)
     : "нет данных";
+const summaryDate = (date: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : safeText(date);
+};
 interface Conversation {
   stage: "email" | "password";
   email?: string;
@@ -114,6 +118,10 @@ export class Engine {
     if (input.callbackId)
       await this.api.answer(input.callbackId).catch(() => {});
     const aliases: Record<string, string> = {
+      "📊 Сводка сейчас": "/summary",
+      "🔔 Уведомления": "/settings",
+      "🗓 Ежедневная сводка": "/daily",
+      "🚪 Выйти": "/logout",
       "Сводка сейчас": "/summary",
       Уведомления: "/settings",
       "Ежедневная сводка": "/daily",
@@ -384,11 +392,11 @@ export class Engine {
   private async settings(chat: string) {
     const b = await this.store.binding(chat);
     if (!b) return;
-    await this.api.send(chat, "Уведомления:", {
+    await this.api.send(chat, "<b>🔔 Уведомления</b>\nВыберите, какие события присылать:", {
       reply_markup: {
         inline_keyboard: Object.entries(labels).map(([key, label]) => [
           {
-            text: `${b.preferences[key] ? "✓" : "○"} ${label}`,
+            text: `${b.preferences[key] ? "✅" : "⬜"} ${label}`,
             callback_data: `toggle:${key}`,
           },
         ]),
@@ -400,13 +408,13 @@ export class Engine {
     if (!b) return;
     await this.api.send(
       chat,
-      `Ежедневная сводка: ${b.daily_enabled ? "включена" : "выключена"}, ${b.daily_time} МСК.\nОхватывает предыдущий полный день. Изменить: /daily HH:mm`,
+      `<b>🗓 Ежедневная сводка</b>\n\n${b.daily_enabled ? "✅ Включена" : "🔕 Выключена"}\n🕘 Время: <b>${b.daily_time} МСК</b>\n📅 За предыдущий полный день\n\nИзменить время: <code>/daily HH:mm</code>`,
       {
         reply_markup: {
           inline_keyboard: [
             [
               {
-                text: b.daily_enabled ? "Выключить" : "Включить",
+                text: b.daily_enabled ? "🔕 Выключить" : "🔔 Включить",
                 callback_data: "daily:toggle",
               },
             ],
@@ -487,10 +495,10 @@ export class Engine {
           .slice(0, 5)
           .map(
             (item: any) =>
-              `${safeText(String(item.product?.name ?? "Продукт").slice(0, 35))}: ${amount(item.quantity)}`,
+              `• ${safeText(String(item.product?.name ?? "Продукт").slice(0, 35))} — <b>${amount(item.quantity)}</b>`,
           )
-          .join(", ")
+          .join("\n")
       : "";
-    return `Сводка STOQ за ${safeText(date)} (МСК)\n\nВыручка: ${amount(finance?.revenue)} ₽\nРасчётная прибыль по себестоимости ингредиентов: ${amount(finance?.earning)} ₽\nЗаказы: ${amount(finance?.orders)}, завершено: ${amount(finance?.completed)}\nСредний чек: ${amount(finance?.averageCheck)} ₽\n\nБлюда: доступно ${amount(dishes?.active)}, мало ${amount(dishes?.lowStock)}, стоп ${amount(dishes?.stopList)}\nПродуктов на складе: ${amount(inventory?.totalProducts)}, заканчиваются: ${amount(Array.isArray(inventory?.lowStockProducts) ? inventory.lowStockProducts.length : null)}\n${low ? "Заканчиваются: " + low + "\n" : ""}Истекает срок за 7 дней: ${amount(expiryCount)} партий\nПросрочено, ожидает утилизации: ${amount(awaiting)}\nТекущие остатки — на момент запроса.`;
+    return `<b>📊 Сводка STOQ</b>\n📅 ${summaryDate(date)} · МСК\n\n<b>💰 Продажи</b>\nВыручка — <b>${amount(finance?.revenue)}</b> ₽\nПрибыль по себестоимости — <b>${amount(finance?.earning)}</b> ₽\nЗаказы — <b>${amount(finance?.orders)}</b> · завершено: <b>${amount(finance?.completed)}</b>\nСредний чек — <b>${amount(finance?.averageCheck)}</b> ₽\n\n<b>🍽 Меню</b>\n✅ Доступно: <b>${amount(dishes?.active)}</b>\n🟡 Мало: <b>${amount(dishes?.lowStock)}</b>\n⛔ Стоп-лист: <b>${amount(dishes?.stopList)}</b>\n\n<b>📦 Склад</b>\nВсего продуктов: <b>${amount(inventory?.totalProducts)}</b>\n⚠️ Заканчиваются: <b>${amount(Array.isArray(inventory?.lowStockProducts) ? inventory.lowStockProducts.length : null)}</b>${low ? `\n${low}` : ""}\n⏳ Срок до 7 дней: <b>${amount(expiryCount)}</b> партий\n🗑 Просрочено, ожидает утилизации: <b>${amount(awaiting)}</b>\n\n<i>Остатки актуальны на момент запроса.</i>`;
   }
 }
