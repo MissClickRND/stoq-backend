@@ -50,6 +50,7 @@ describe('inventory Socket.IO delivery', () => {
     app = module.createNestApplication({ logger: false });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.listen(0, '127.0.0.1');
+    (app.get(InventoryWsGateway).server as any).on('connection', (client: any) => client.join('restaurant:1'));
     base = await app.getUrl();
     listener = app.get(InventoryEventsListener);
   });

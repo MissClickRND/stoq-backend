@@ -7,7 +7,7 @@ import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 export type OrderCreatedEvent = {
   eventId: string;
   orderId: string;
-  restaurantId?: string;
+  restaurantId?: number;
   items: Array<{ dishId: string; quantity: number }>;
   createdAt: string;
 };

@@ -1,0 +1,10 @@
+ALTER TABLE supply.supplies ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+ALTER TABLE inventory.batches ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+ALTER TABLE inventory.stock_movements ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+ALTER TABLE inventory.idempotency_keys ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+DROP INDEX IF EXISTS supply.supplies_supply_number_key;
+CREATE UNIQUE INDEX IF NOT EXISTS "supplies_restaurantId_supply_number_key" ON supply.supplies("restaurantId", supply_number);
+CREATE INDEX IF NOT EXISTS "supplies_restaurantId_idx" ON supply.supplies("restaurantId");
+CREATE INDEX IF NOT EXISTS "batches_restaurantId_idx" ON inventory.batches("restaurantId");
+CREATE INDEX IF NOT EXISTS "stock_movements_restaurantId_idx" ON inventory.stock_movements("restaurantId");
+CREATE INDEX IF NOT EXISTS "idempotency_keys_restaurantId_idx" ON inventory.idempotency_keys("restaurantId");

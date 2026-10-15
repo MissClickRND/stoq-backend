@@ -1,3 +1,4 @@
+import { restaurantId } from '../common/tenant/restaurant-context';
 import {
   ConflictException,
   BadRequestException,
@@ -48,8 +49,8 @@ export class OrdersService {
       throw new ForbiddenException('Сброс тестовых данных отключён');
     }
     return this.prisma.$transaction(async (tx) => {
-      await tx.orderItem.deleteMany({});
-      const orders = await tx.order.deleteMany({});
+      await tx.orderItem.deleteMany({ where: { order: { restaurantId: restaurantId() } }, });
+      const orders = await tx.order.deleteMany({ where: { restaurantId: restaurantId() }, });
       return { orders: orders.count };
     });
   }
@@ -164,7 +165,7 @@ export class OrdersService {
 
   private async ensureOrderExists(orderId: number) {
     const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+      where: { restaurantId: restaurantId(),  id: orderId },
     });
 
     if (!order) {
@@ -288,7 +289,7 @@ export class OrdersService {
 
     const order = await this.toResponse(
       await this.prisma.order.create({
-        data,
+        data: { ...data, restaurantId: restaurantId() },
         include: {
           items: true,
         },
@@ -309,7 +310,7 @@ export class OrdersService {
     const dishIds = dto.items.map((item) => item.dishId);
 
     const existingItems = await this.prisma.orderItem.findMany({
-      where: { orderId },
+      where: { order: { restaurantId: restaurantId() },  orderId },
       select: { dishId: true },
     });
 
@@ -338,7 +339,7 @@ export class OrdersService {
 
   async findAll() {
     const orders = await this.prisma.order.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         status: {
           notIn: [OrderStatus.rejected, OrderStatus.cancelled],
         },
@@ -355,7 +356,7 @@ export class OrdersService {
 
   async findOne(id: number) {
     const order = await this.prisma.order.findUnique({
-      where: { id },
+      where: { restaurantId: restaurantId(),  id },
       include: {
         items: true,
       },
@@ -408,7 +409,7 @@ export class OrdersService {
     await this.ensureOrderExists(payload.id);
 
     const order = await this.prisma.order.update({
-      where: { id: payload.id },
+      where: { restaurantId: restaurantId(),  id: payload.id },
       data: {
         status: payload.status,
       },
@@ -430,10 +431,10 @@ export class OrdersService {
 
     await this.prisma.$transaction([
       this.prisma.orderItem.deleteMany({
-        where: { orderId: id },
+        where: { order: { restaurantId: restaurantId() },  orderId: id },
       }),
       this.prisma.order.delete({
-        where: { id },
+        where: { restaurantId: restaurantId(),  id },
       }),
     ]);
 
@@ -450,7 +451,7 @@ export class OrdersService {
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     const orders = await this.prisma.order.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         created_at: {
           gte: startOfDay,
           lt: startOfTomorrow,

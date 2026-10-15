@@ -1,3 +1,4 @@
+import { restaurantId } from '../common/tenant/restaurant-context';
 import {
   ConflictException,
   BadRequestException,
@@ -24,9 +25,9 @@ export class DishesService {
       throw new ForbiddenException('Сброс тестовых данных отключён');
     }
     const result = await this.prisma.$transaction(async (tx) => {
-      await tx.recipeItem.deleteMany({});
-      const dishes = await tx.dish.deleteMany({});
-      const products = await tx.product.deleteMany({});
+      await tx.recipeItem.deleteMany({ where: { dish: { restaurantId: restaurantId() } }, });
+      const dishes = await tx.dish.deleteMany({ where: { restaurantId: restaurantId() }, });
+      const products = await tx.product.deleteMany({ where: { restaurantId: restaurantId() }, });
       return { dishes: dishes.count, products: products.count };
     });
     return result;
@@ -46,7 +47,7 @@ export class DishesService {
         "Добавьте ингредиенты без повторяющихся продуктов",
       );
     const count = await this.prisma.product.count({
-      where: { id: { in: ids }, isDeleted: false },
+      where: { restaurantId: restaurantId(),  id: { in: ids }, isDeleted: false },
     });
     if (count !== ids.length)
       throw new BadRequestException(
@@ -55,7 +56,7 @@ export class DishesService {
     const stock = await this.fetchStock(ids);
     try {
       const dish = await this.prisma.dish.create({
-        data: {
+        data: { restaurantId: restaurantId(),
           name: data.name.trim(),
           description: data.description?.trim(),
           imageURL: data.imageURL?.trim(),
@@ -106,7 +107,7 @@ export class DishesService {
     ];
 
     const count = await this.prisma.product.count({
-      where: { id: { in: allProductIds }, isDeleted: false },
+      where: { restaurantId: restaurantId(),  id: { in: allProductIds }, isDeleted: false },
     });
     if (count !== allProductIds.length) {
       throw new BadRequestException(
@@ -121,7 +122,7 @@ export class DishesService {
         return Promise.all(
           data.map((dishData) =>
             tx.dish.create({
-              data: {
+              data: { restaurantId: restaurantId(),
                 name: dishData.name.trim(),
                 description: dishData.description?.trim(),
                 imageURL: dishData.imageURL?.trim(),
@@ -160,7 +161,7 @@ export class DishesService {
 
   async findAll(search?: string) {
     const dishes = await this.prisma.dish.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         isDeleted: false,
         name: search
           ? {
@@ -189,7 +190,7 @@ export class DishesService {
 
   async findOne(id: number) {
     const dish = await this.prisma.dish.findFirst({
-      where: {
+      where: { restaurantId: restaurantId(),
         id,
         isDeleted: false,
       },
@@ -295,7 +296,7 @@ export class DishesService {
     await this.findOne(id);
 
     return this.prisma.dish.update({
-      where: { id },
+      where: { restaurantId: restaurantId(),  id },
       data: {
         isDeleted: true,
       },

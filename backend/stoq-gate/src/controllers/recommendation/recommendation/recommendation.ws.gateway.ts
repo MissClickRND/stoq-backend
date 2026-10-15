@@ -7,6 +7,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { randomUUID } from 'crypto';
+import { restaurantId, restaurantRoom } from '../../../common/tenant/restaurant-context';
 import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 
@@ -106,6 +107,6 @@ export class RecommendationsWsGateway {
   }
 
   broadcastStopListUpdated(payload: StopListUpdatedBroadcastDto) {
-    this.server.emit('recommendations:stopListUpdated', payload);
+    this.server.to(restaurantRoom(restaurantId())).emit('recommendations:stopListUpdated', payload);
   }
 }

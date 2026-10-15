@@ -1,3 +1,4 @@
+import { restaurantId } from '../common/tenant/restaurant-context';
 import {
     ConflictException,
     Injectable,
@@ -15,7 +16,7 @@ export class RecipesService {
 
     private async ensureDishExists(dishId: number) {
         const dish = await this.prisma.dish.findFirst({
-            where: {
+            where: { restaurantId: restaurantId(),
                 id: dishId,
                 isDeleted: false,
             },
@@ -38,7 +39,7 @@ export class RecipesService {
         }
 
         const products = await this.prisma.product.findMany({
-            where: {
+            where: { restaurantId: restaurantId(),
                 id: { in: productIds },
                 isDeleted: false,
             },
@@ -56,7 +57,7 @@ export class RecipesService {
 
     async findAll() {
         return this.prisma.dish.findMany({
-            where: {
+            where: { restaurantId: restaurantId(),
                 isDeleted: false,
                 recipeItems: {
                     some: {},
@@ -81,7 +82,7 @@ export class RecipesService {
 
     async findOne(dishId: number) {
         const dish = await this.prisma.dish.findFirst({
-            where: {
+            where: { restaurantId: restaurantId(),
                 id: dishId,
                 isDeleted: false,
             },
@@ -110,7 +111,7 @@ export class RecipesService {
         await this.ensureProductsExist(data.items);
 
         const existingItems = await this.prisma.recipeItem.count({
-            where: { dishId: data.dishId },
+            where: { dish: { restaurantId: restaurantId() },  dishId: data.dishId },
         });
 
         if (existingItems > 0) {
@@ -139,7 +140,7 @@ export class RecipesService {
         await this.ensureProductsExist(data.items);
 
         const existingItems = await this.prisma.recipeItem.findMany({
-            where: { dishId },
+            where: { dish: { restaurantId: restaurantId() },  dishId },
             select: { productId: true },
         });
 
@@ -172,7 +173,7 @@ export class RecipesService {
         await this.ensureDishExists(dishId);
 
         const result = await this.prisma.recipeItem.deleteMany({
-            where: { dishId },
+            where: { dish: { restaurantId: restaurantId() },  dishId },
         });
 
         if (result.count === 0) {

@@ -1,3 +1,5 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { RestaurantInterceptor } from './common/tenant/restaurant.interceptor';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ProductController } from './controllers/catalog/product/product.controller';
@@ -39,7 +41,7 @@ import { MenuController } from './controllers/catalog/dishes/menu.controller';
     StatisticsController,
     RecommendationsController,
   ],
-  providers: [
+  providers: [{ provide: APP_INTERCEPTOR, useClass: RestaurantInterceptor },
     RecommendationsWsGateway,
     RecommendationEventsListener,
     InventoryEventsListener,

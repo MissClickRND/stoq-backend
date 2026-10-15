@@ -8,17 +8,24 @@ datasource db {
 }
 
 model Unit {
+  restaurantId Int?
+
   id        Int       @id @default(autoincrement())
-  name      String    @unique
-  shortName String    @unique
+  name      String
+  shortName String
   createdAt DateTime  @default(now())
 
   products  Product[]
+  @@index([restaurantId])
+  @@unique([restaurantId, name])
+  @@unique([restaurantId, shortName])
 }
 
 model Product {
+  restaurantId Int?
+
   id        Int       @id @default(autoincrement())
-  name      String    @unique
+  name      String
   unitId    Int
   unit      Unit      @relation(fields: [unitId], references: [id])
   createdAt DateTime  @default(now())
@@ -26,26 +33,33 @@ model Product {
   isDeleted Boolean   @default(false)
 
   recipeItems RecipeItem[]
+  @@index([restaurantId])
+  @@unique([restaurantId, name])
 }
 
 model Dish {
+  restaurantId Int?
+
   id        Int       @id @default(autoincrement())
-  name      String    @unique
+  name      String
   description String?
+  category String?
   imageURL String?
-  salePrice Int?
+  salePrice Decimal? @db.Decimal(18, 2)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   isDeleted Boolean   @default(false)
 
   recipeItems RecipeItem[]
+  @@index([restaurantId])
+  @@unique([restaurantId, name])
 }
 
 model RecipeItem {
   id        Int     @id @default(autoincrement())
   dishId    Int
   productId Int
-  quantity  Int
+  quantity  Decimal @db.Decimal(18, 3)
 
   dish      Dish    @relation(fields: [dishId], references: [id])
   product   Product @relation(fields: [productId], references: [id])

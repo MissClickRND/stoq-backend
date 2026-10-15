@@ -8,8 +8,12 @@ datasource db {
 }
 
 model Supply {
+  restaurantId Int?
+
   id           Int          @id @default(autoincrement())
-  supplyNumber String       @unique @map("supply_number")
+  supplyNumber String        @map("supply_number")
+  supplier     String?
+  totalPrice   Decimal?     @map("total_price") @db.Decimal(18, 2)
   status       SupplyStatus @default(RECEIVED)
   receivedAt   DateTime     @default(now()) @map("received_at") @db.Timestamptz(6)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -17,6 +21,8 @@ model Supply {
 
   @@map("supplies")
   @@schema("supply")
+  @@index([restaurantId])
+  @@unique([restaurantId, supplyNumber])
 }
 
 model SupplyItem {
@@ -24,6 +30,7 @@ model SupplyItem {
   supplyId      Int      @map("supply_id")
   productId     Int      @map("product_id")
   quantity      Decimal  @db.Decimal
+  totalPrice    Decimal? @map("total_price") @db.Decimal(18, 2)
   expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   supply        Supply   @relation(fields: [supplyId], references: [id])
@@ -34,10 +41,13 @@ model SupplyItem {
 }
 
 model Batch {
+  restaurantId Int?
+
   id              Int           @id @default(autoincrement())
   supplyId        Int           @map("supply_id")
   productId       Int           @map("product_id")
   initialQuantity Decimal       @map("initial_quantity") @db.Decimal
+  price           Decimal?      @db.Decimal(18, 6)
   expiresAt       DateTime      @map("expires_at") @db.Timestamptz(6)
   status          BatchStatus   @default(ACTIVE)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -45,8 +55,11 @@ model Batch {
 
   @@index([supplyId])
   @@index([productId])
+  @@index([status, expiresAt])
   @@map("batches")
   @@schema("inventory")
+
+  @@index([restaurantId])
 }
 
 model BatchBalance {
@@ -58,6 +71,35 @@ model BatchBalance {
 
   @@map("batch_balances")
   @@schema("inventory")
+}
+
+
+model StockMovement {
+  restaurantId Int?
+
+  id        Int      @id @default(autoincrement())
+  orderId   String   @map("order_id")
+  batchId   Int      @map("batch_id")
+  productId Int      @map("product_id")
+  quantity  Decimal  @db.Decimal // Отрицательное для списания, положительное для оприходования
+  type      String   // Например: 'DEDUCTION', 'RECEIPT'
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("stock_movements")
+  @@schema("inventory")
+  @@index([restaurantId])
+}
+
+model IdempotencyKey {
+  restaurantId Int?
+
+  key       String   @id
+  orderId   String   @map("order_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
+  @@schema("inventory")
+  @@index([restaurantId])
 }
 
 enum SupplyStatus {
@@ -72,7 +114,7 @@ enum BatchStatus {
   ACTIVE
   DEPLETED
   EXPIRED
-  QUARANTINED
+  RUNNINGOUT
 
   @@schema("inventory")
 }

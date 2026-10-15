@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  BadRequestException,
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -25,8 +26,15 @@ export class AuthGuard implements CanActivate {
       return true;
     const req = context.switchToHttp().getRequest();
     const token = accessTokenFrom(req.headers, req.cookies);
-    if (!token && this.reflector.getAllAndOverride<boolean>(GUEST_KEY, targets))
+    const selected = req.headers['x-restaurant-id'];
+    if (!token && this.reflector.getAllAndOverride<boolean>(GUEST_KEY, targets)) {
+      if (typeof selected !== 'string' || !/^[1-9]\d*$/.test(selected) || !Number.isSafeInteger(Number(selected))) {
+        throw new BadRequestException('Укажите X-Restaurant-Id выбранного ресторана');
+      }
+      await this.auth.request('command.auth.get_restaurant', { id: Number(selected) });
+      req.restaurantId = Number(selected);
       return true;
+    }
     const user = await this.auth.verifyAccess(token);
     const roles =
       this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, targets) ??
@@ -34,6 +42,8 @@ export class AuthGuard implements CanActivate {
     if (!roles.includes(user.role))
       throw new ForbiddenException('Недостаточно прав');
     req.user = user;
+    if (selected !== undefined && String(user.restaurantId) !== selected) throw new ForbiddenException('Нельзя выбрать чужой ресторан');
+    req.restaurantId = user.restaurantId;
     return true;
   }
 }

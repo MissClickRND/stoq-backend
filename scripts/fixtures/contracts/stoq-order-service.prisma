@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  
+
 }
 
 enum OrderStatus {
@@ -17,20 +17,30 @@ enum OrderStatus {
 }
 
 model Order {
+  restaurantId Int?
+
   id          Int         @id @default(autoincrement())
   status      OrderStatus @default(created)
+  date        DateTime    @default(now()) @db.Timestamptz(6)
+  type        String      @default("dine-in")
+  table       Int?
+  guests      Int         @default(1)
   created_at  DateTime    @default(now())
   updated_at  DateTime    @updatedAt
 
   items       OrderItem[]
 
+  @@index([restaurantId])
 }
 
 model OrderItem {
   id        Int  @id @default(autoincrement())
   orderId   Int
-  dishId    Int  
-  quantity  Int     
+  dishId    Int
+  quantity  Int
+  name      String?
+  imageURL  String?
+  price     Decimal? @db.Decimal(18, 2)
 
   order     Order   @relation(fields: [orderId], references: [id])
 

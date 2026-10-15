@@ -1,3 +1,5 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { RestaurantInterceptor } from './common/tenant/restaurant.interceptor';
 import { Module } from "@nestjs/common";
 import { AppService } from "./app.service";
 import { ProductModule } from "./product/product.module";
@@ -16,6 +18,6 @@ import { CommandBusModule } from "./common/rabbitMQ/command-bus.module";
     ConfigModule.forRoot({ isGlobal: true }),
     CommandBusModule
   ],
-  providers: [AppService],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: RestaurantInterceptor },AppService],
 })
 export class AppModule {}

@@ -1,3 +1,4 @@
+import { restaurantId, restaurantStorage } from '../common/tenant/restaurant-context';
 import {
   BadRequestException,
   ConflictException,
@@ -58,7 +59,7 @@ export class InventoryService {
     const productIds = products.map((p) => p.id);
 
     const batches = await this.prisma.batch.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
         productId: { in: productIds },
         balance: { availableQuantity: { gt: 0 } },
@@ -109,7 +110,7 @@ export class InventoryService {
     const uniqueProductIds = [...new Set(productIds)];
 
     const batches = await this.prisma.batch.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         productId: { in: uniqueProductIds },
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
         expiresAt: { gt: new Date() },
@@ -150,7 +151,7 @@ export class InventoryService {
 
   async findOne(productId: number): Promise<any[]> {
     const batches = await this.prisma.batch.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         productId,
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
       },
@@ -184,7 +185,7 @@ export class InventoryService {
     const batchIds = dto.items.map((item) => item.batchId);
 
     const existingBalances = await this.prisma.batchBalance.findMany({
-      where: { batchId: { in: batchIds } },
+      where: { batch: { restaurantId: restaurantId() },  batchId: { in: batchIds } },
       select: { batchId: true },
     });
 
@@ -199,7 +200,7 @@ export class InventoryService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const batches = await tx.batch.findMany({
-        where: { id: { in: batchIds } },
+        where: { restaurantId: restaurantId(),  id: { in: batchIds } },
         select: { id: true, status: true, productId: true },
       });
 
@@ -212,7 +213,7 @@ export class InventoryService {
 
         updates.push(
           tx.batchBalance.update({
-            where: { batchId: item.batchId },
+            where: { batch: { restaurantId: restaurantId() },  batchId: item.batchId },
             data: { availableQuantity: newQty },
           }),
         );
@@ -223,7 +224,7 @@ export class InventoryService {
           if (newStatus !== currentStatus) {
             updates.push(
               tx.batch.update({
-                where: { id: item.batchId },
+                where: { restaurantId: restaurantId(),  id: item.batchId },
                 data: { status: newStatus },
               }),
             );
@@ -247,7 +248,7 @@ export class InventoryService {
       throw new BadRequestException("Некорректный ID партии");
     const result = await this.prisma.$transaction(async (tx) => {
       const batch = await tx.batch.findUnique({
-        where: { id: batchId },
+        where: { restaurantId: restaurantId(),  id: batchId },
         include: { balance: true },
       });
       if (!batch?.balance) throw new NotFoundException("Партия не найдена");
@@ -259,7 +260,7 @@ export class InventoryService {
       if (quantity.isZero())
         return { batchId, productId: batch.productId, availableQuantity: 0, writtenOffQuantity: 0 };
       const updated = await tx.batchBalance.updateMany({
-        where: { batchId, availableQuantity: quantity, reservedQuantity: 0 },
+        where: { batch: { restaurantId: restaurantId() },  batchId, availableQuantity: quantity, reservedQuantity: 0 },
         data: { availableQuantity: 0, updatedAt: new Date() },
       });
       if (updated.count !== 1)
@@ -268,11 +269,11 @@ export class InventoryService {
         );
       if (batch.status !== BatchStatus.EXPIRED)
         await tx.batch.update({
-          where: { id: batchId },
+          where: { restaurantId: restaurantId(),  id: batchId },
           data: { status: BatchStatus.DEPLETED },
         });
       await tx.stockMovement.create({
-        data: {
+        data: { restaurantId: restaurantId(),
           orderId: "manual-write-off",
           batchId,
           productId: batch.productId,
@@ -311,7 +312,7 @@ export class InventoryService {
       const requestedQty = new Decimal(item.quantity);
 
       const batches = await client.batch.findMany({
-        where: {
+        where: { restaurantId: restaurantId(),
           productId: item.productId,
           status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
           expiresAt: { gt: now },
@@ -373,8 +374,9 @@ export class InventoryService {
   }
 
   async deductStock(dto: DeductStockDto) {
+    dto = { ...dto, idempotencyKey: `${restaurantId()}:${dto.idempotencyKey}` };
     const existingKey = await this.prisma.idempotencyKey.findUnique({
-      where: { key: dto.idempotencyKey },
+      where: { restaurantId: restaurantId(),  key: dto.idempotencyKey },
     });
 
     if (existingKey) {
@@ -397,7 +399,7 @@ export class InventoryService {
         let remainingToDeduct = new Decimal(item.quantity);
 
         const batches = await tx.batch.findMany({
-          where: {
+          where: { restaurantId: restaurantId(),
             productId: item.productId,
             status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
             expiresAt: { gt: now },
@@ -422,7 +424,7 @@ export class InventoryService {
           );
 
           await tx.batchBalance.update({
-            where: { batchId: batch.id },
+            where: { batch: { restaurantId: restaurantId() },  batchId: batch.id },
             data: {
               availableQuantity: { decrement: deductAmount },
               updatedAt: now,
@@ -431,7 +433,7 @@ export class InventoryService {
 
           if (newStatus !== batch.status) {
             await tx.batch.update({
-              where: { id: batch.id },
+              where: { restaurantId: restaurantId(),  id: batch.id },
               data: { status: newStatus },
             });
           }
@@ -450,11 +452,11 @@ export class InventoryService {
       }
 
       if (movementsToCreate.length > 0) {
-        await tx.stockMovement.createMany({ data: movementsToCreate });
+        await tx.stockMovement.createMany({ data: movementsToCreate.map(item => ({ ...item, restaurantId: restaurantId() })) });
       }
 
       await tx.idempotencyKey.create({
-        data: { key: dto.idempotencyKey, orderId: dto.orderId },
+        data: { restaurantId: restaurantId(),  key: dto.idempotencyKey, orderId: dto.orderId },
       });
 
       return { success: true };
@@ -481,7 +483,7 @@ export class InventoryService {
     }
 
     const batches = await this.prisma.batch.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
         expiresAt: {
           gt: now,
@@ -542,7 +544,7 @@ export class InventoryService {
     const now = new Date();
 
     const expiredBatches = await this.prisma.batch.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
         expiresAt: { lte: now },
         balance: { availableQuantity: { gt: new Decimal(0) } },
@@ -563,10 +565,18 @@ export class InventoryService {
     }
   }
 
+  async processExpiredForAllRestaurants(): Promise<void> {
+    const restaurants = await this.prisma.batch.findMany({
+      where: { restaurantId: { not: null }, expiresAt: { lte: new Date() }, status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] } },
+      distinct: ['restaurantId'], select: { restaurantId: true },
+    });
+    for (const row of restaurants) await restaurantStorage.run(row.restaurantId!, () => this.processJustExpiredBatches());
+  }
+
   private async handleSingleBatchExpiration(batch: any, now: Date) {
     const notification = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.batch.updateMany({
-        where: {
+        where: { restaurantId: restaurantId(),
           id: batch.id,
           status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
           // A supply edit may have extended the lifetime since the scan.
@@ -585,12 +595,12 @@ export class InventoryService {
 
       // Read the balance inside the transaction, after claiming the batch.
       const balance = await tx.batchBalance.findUniqueOrThrow({
-        where: { batchId: batch.id },
+        where: { batch: { restaurantId: restaurantId() },  batchId: batch.id },
       });
       const lostQuantity = balance.availableQuantity;
 
       await tx.batchBalance.update({
-        where: { batchId: batch.id },
+        where: { batch: { restaurantId: restaurantId() },  batchId: batch.id },
         data: {
           availableQuantity: new Decimal(0),
           updatedAt: now,
@@ -598,7 +608,7 @@ export class InventoryService {
       });
 
       await tx.stockMovement.create({
-        data: {
+        data: { restaurantId: restaurantId(),
           orderId: "SYSTEM_EXPIRATION",
           batchId: batch.id,
           productId: batch.productId,

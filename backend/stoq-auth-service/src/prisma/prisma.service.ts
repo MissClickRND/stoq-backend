@@ -14,6 +14,13 @@ export class PrismaService
 
   async onModuleInit() {
     await this.$connect();
+    try {
+      await this.$queryRaw`SELECT u."id", u."fullName", u."restaurantId", u."tokenVersion", r."id"
+        FROM "User" u LEFT JOIN "Restaurant" r ON r."id" = u."restaurantId" LIMIT 0`;
+    } catch (error) {
+      await this.$disconnect();
+      throw new Error('Auth: база не соответствует схеме. Проверьте DATABASE_URL (auth_db) и prisma migrate deploy.', { cause: error });
+    }
   }
 
   async onModuleDestroy() {

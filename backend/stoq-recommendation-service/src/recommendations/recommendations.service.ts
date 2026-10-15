@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import Redis from "ioredis";
+import { restaurantId } from '../common/tenant/restaurant-context';
 import { StopListReason } from "@prisma/client";
 import { CommandBusService } from "../common/rabbitMQ/command-bus.service";
 import { EXCHANGES, ROUTING_KEYS } from "../common/rabbitMQ/rabbitmq-topology";
@@ -35,9 +36,8 @@ export class RecommendationService {
     process.env.RECOMMENDATION_CACHE_TTL ?? 30,
   );
 
-  private readonly CACHE_KEY_STATUSES = "recommendation:dish-statuses";
-  private readonly CACHE_KEY_DISH_RECOMMENDATIONS =
-    "recommendation:dish-recommendations";
+  private get CACHE_KEY_STATUSES() { return `recommendation:restaurant:${restaurantId()}:dish-statuses`; }
+  private get CACHE_KEY_DISH_RECOMMENDATIONS() { return `recommendation:restaurant:${restaurantId()}:dish-recommendations`; }
 
   constructor(
     private readonly commandBusService: CommandBusService,

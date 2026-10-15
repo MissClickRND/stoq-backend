@@ -1,1 +1,14 @@
-{"rootDir":".","testEnvironment":"node","testRegex":".*contract\\.spec\\.ts$","moduleNameMapper":{"^src/(.*)$":"<rootDir>/src/$1"},"transform":{"^.+\\.ts$":"ts-jest"}}
+{
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".*contract\\.spec\\.ts$",
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "transform": {
+    "^.+\\.ts$": "ts-jest"
+  },
+  "setupFilesAfterEnv": [
+    "<rootDir>/src/restaurant-test.setup.ts"
+  ]
+}

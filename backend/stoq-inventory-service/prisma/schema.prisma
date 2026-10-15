@@ -8,8 +8,10 @@ datasource db {
 }
 
 model Supply {
+  restaurantId Int?
+
   id           Int          @id @default(autoincrement())
-  supplyNumber String       @unique @map("supply_number")
+  supplyNumber String        @map("supply_number")
   supplier     String?
   totalPrice   Decimal?     @map("total_price") @db.Decimal(18, 2)
   status       SupplyStatus @default(RECEIVED)
@@ -19,6 +21,8 @@ model Supply {
 
   @@map("supplies")
   @@schema("supply")
+  @@index([restaurantId])
+  @@unique([restaurantId, supplyNumber])
 }
 
 model SupplyItem {
@@ -37,6 +41,8 @@ model SupplyItem {
 }
 
 model Batch {
+  restaurantId Int?
+
   id              Int           @id @default(autoincrement())
   supplyId        Int           @map("supply_id")
   productId       Int           @map("product_id")
@@ -49,10 +55,11 @@ model Batch {
 
   @@index([supplyId])
   @@index([productId])
-  @@index([status, expiresAt]) 
+  @@index([status, expiresAt])
   @@map("batches")
   @@schema("inventory")
-  
+
+  @@index([restaurantId])
 }
 
 model BatchBalance {
@@ -68,6 +75,8 @@ model BatchBalance {
 
 
 model StockMovement {
+  restaurantId Int?
+
   id        Int      @id @default(autoincrement())
   orderId   String   @map("order_id")
   batchId   Int      @map("batch_id")
@@ -78,15 +87,19 @@ model StockMovement {
 
   @@map("stock_movements")
   @@schema("inventory")
+  @@index([restaurantId])
 }
 
 model IdempotencyKey {
+  restaurantId Int?
+
   key       String   @id
   orderId   String   @map("order_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("idempotency_keys")
   @@schema("inventory")
+  @@index([restaurantId])
 }
 
 enum SupplyStatus {

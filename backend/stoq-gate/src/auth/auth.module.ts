@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { AuthController } from './auth.controller';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { RestaurantsController } from './restaurants.controller';
 
 @Global()
 @Module({
@@ -14,7 +15,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     CommandBusModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, RestaurantsController],
   providers: [AuthService, { provide: APP_GUARD, useClass: AuthGuard }],
   exports: [AuthService],
 })

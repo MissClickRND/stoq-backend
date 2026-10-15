@@ -33,7 +33,7 @@ describe('UPD catalog resolution', () => {
   });
   it('creates a readable missing unit and keeps unreadable amounts as null', async () => {
     const result = await service.resolveUpdProducts({ items: [{ ...row, name: 'Сыр', unit: 'кг', quantity: null, totalPrice: null }] });
-    expect(tx.unit.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { name: 'Килограмм', shortName: 'кг' } }));
+    expect(tx.unit.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { name: 'Килограмм', shortName: 'кг', restaurantId: 1 } }));
     expect(result[0]).toMatchObject({ quantity: null, totalPrice: null });
   });
   it('ignores delivery before checking units or creating products', async () => {

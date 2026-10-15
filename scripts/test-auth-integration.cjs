@@ -84,7 +84,7 @@ async function main() {
   const base = await gate.getUrl();
   async function api(method, route, body, cookies, status = method === 'POST' ? 201 : 200) {
     const response = await fetch(base + route, { method,
-      headers: { 'Content-Type': 'application/json', ...(cookies ? { Cookie: cookies } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(cookies ? { Cookie: cookies } : {}), ...((route === '/menu' || route === '/orders' && method === 'POST' && !cookies) ? { 'X-Restaurant-Id': '1' } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
     const data = await response.json();
     assert.equal(response.status, status, `${method} ${route}: unexpected HTTP ${response.status}`);

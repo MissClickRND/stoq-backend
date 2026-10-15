@@ -1,3 +1,4 @@
+import { restaurantId } from '../common/tenant/restaurant-context';
 import {
   ConflictException,
   Injectable,
@@ -29,8 +30,8 @@ export class ProductService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(73120419)::text`;
-        const products = await tx.product.findMany({ include: { unit: true } });
-        const units = await tx.unit.findMany();
+        const products = await tx.product.findMany({ where: { restaurantId: restaurantId() },  include: { unit: true } });
+        const units = await tx.unit.findMany({ where: { restaurantId: restaurantId() } });
         const result: {
           productId: number;
           name: string;
@@ -73,9 +74,9 @@ export class ProductService {
           let unit = product?.unit ?? matchingUnit;
           if (!unit) {
             unit = await tx.unit.upsert({
-              where: { shortName: requestedUnit.shortName },
+              where: { restaurantId_shortName: { restaurantId: restaurantId(), shortName: requestedUnit.shortName } },
               update: {},
-              create: {
+              create: { restaurantId: restaurantId(),
                 name: requestedUnit.name,
                 shortName: requestedUnit.shortName,
               },
@@ -84,7 +85,7 @@ export class ProductService {
           }
           if (!product) {
             product = await tx.product.create({
-              data: { name, unitId: unit.id },
+              data: { restaurantId: restaurantId(),  name, unitId: unit.id },
               include: { unit: true },
             });
             products.push(product);
@@ -106,7 +107,7 @@ export class ProductService {
 
   async findAll(search?: string): Promise<ProductResponseDto[]> {
     const products = await this.prisma.product.findMany({
-      where: {
+      where: { restaurantId: restaurantId(),
         isDeleted: false,
         name: search ? { contains: search, mode: "insensitive" } : undefined,
       },
@@ -119,7 +120,7 @@ export class ProductService {
 
   async findOne(id: number) {
     const product = await this.prisma.product.findFirst({
-      where: {
+      where: { restaurantId: restaurantId(),
         id,
         isDeleted: false,
       },
@@ -136,9 +137,10 @@ export class ProductService {
   }
 
   async create(data: CreateProductDto) {
+    await this.findOneUnit(data.unitId);
     try {
       const product = await this.prisma.product.create({
-        data: {
+        data: { restaurantId: restaurantId(),
           name: data.name,
           unitId: data.unitId,
         },
@@ -177,7 +179,7 @@ export class ProductService {
     await this.findOne(id);
 
     return this.prisma.product.update({
-      where: { id },
+      where: { restaurantId: restaurantId(),  id },
       data: { isDeleted: true },
     });
   }
@@ -185,7 +187,7 @@ export class ProductService {
   async createUnit(dto: CreateUnitDto) {
     try {
       const unit = await this.prisma.unit.create({
-        data: {
+        data: { restaurantId: restaurantId(),
           name: dto.name,
           shortName: dto.shortName,
         },
@@ -203,14 +205,14 @@ export class ProductService {
   }
 
   async findAllUnits() {
-    return this.prisma.unit.findMany({
+    return this.prisma.unit.findMany({ where: { restaurantId: restaurantId() },
       orderBy: { id: "asc" },
     });
   }
 
   async findOneUnit(id: number) {
     const unit = await this.prisma.unit.findUnique({
-      where: { id },
+      where: { restaurantId: restaurantId(),  id },
     });
 
     if (!unit) {

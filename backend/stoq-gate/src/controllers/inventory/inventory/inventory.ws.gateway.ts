@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { plainToInstance, ClassConstructor } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { Logger } from '@nestjs/common';
+import { restaurantId, restaurantRoom } from '../../../common/tenant/restaurant-context';
 import { InventoryResponseDto, ProductResponseDto } from '../../../common/dto/business-response.dto';
 import { ApiTags, ApiExtraModels } from '@nestjs/swagger';
 import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
@@ -166,7 +167,7 @@ export class InventoryWsGateway {
       ...payload, data, problem,
       message: notifications.map((notification) => notification.message).join(' '), notifications,
     };
-    this.server.emit('inventory:stockChanged', event);
+    this.server.to(restaurantRoom(restaurantId())).emit('inventory:stockChanged', event);
   }
 
   async broadcastBatchExpired(payload: BatchExpiredEvent): Promise<void> {
@@ -180,7 +181,7 @@ export class InventoryWsGateway {
       ...payload, product, productName, problem, severity: 'warning',
       message: `${productName}: истёк срок годности партии №${payload.batchId}. Списано ${payload.lostQuantity}${unit}.`,
     };
-    this.server.emit('inventory:batchExpired', event);
+    this.server.to(restaurantRoom(restaurantId())).emit('inventory:batchExpired', event);
   }
 
   private async getNotificationProducts(productIds: number[], inventory: InventoryResponseDto[] = []) {

@@ -87,6 +87,17 @@ export class AuthService {
         };
     }
 
+    getRestaurants() {
+        return this.prisma.restaurant.findMany({ select: { id: true, name: true, address: true }, orderBy: { id: 'asc' } });
+    }
+
+    async getRestaurant(id: number) {
+        if (!Number.isSafeInteger(id) || id < 1) throw new BadRequestException('Некорректный ID ресторана');
+        const restaurant = await this.prisma.restaurant.findUnique({ where: { id }, select: { id: true, name: true, address: true } });
+        if (!restaurant) throw new NotFoundException('Ресторан не найден');
+        return restaurant;
+    }
+
     async registerRestaurant(dto: RegisterRestaurantDto) {
         const email = dto.email.toLowerCase().trim();
 

@@ -13,7 +13,7 @@ export class InventoryScheduler {
   })
   async handleMinuteExpirationCheck() {
     try {
-      await this.inventoryService.processJustExpiredBatches();
+      await this.inventoryService.processExpiredForAllRestaurants();
     } catch (error) {
       this.logger.error("Ошибка проверки просроченных партий", error);
     }

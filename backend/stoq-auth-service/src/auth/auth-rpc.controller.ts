@@ -34,6 +34,16 @@ export class AuthRPCController {
 
   constructor(private readonly auth: AuthService) {}
 
+  @rpc(ROUTING_KEYS.AUTH_GET_RESTAURANTS)
+  restaurants() {
+    return executeRpc(() => this.auth.getRestaurants());
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_GET_RESTAURANT)
+  restaurant(payload: { id: number }) {
+    return executeRpc(() => this.auth.getRestaurant(payload?.id));
+  }
+
   private dto<T>(metatype: new () => T, value: unknown): Promise<T> {
     return this.validation.transform(value, { type: "body", metatype });
   }

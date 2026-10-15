@@ -1,6 +1,7 @@
 import { Controller, Get, HttpException, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Public } from '../../../auth/auth.decorators';
+import { AllowGuest, Roles } from '../../../auth/auth.decorators';
+import { STAFF } from '../../../auth/auth.types';
 import { CommandBusService } from '../../../common/rabbitMQ/command-bus.service';
 import {
   EXCHANGES,
@@ -8,7 +9,8 @@ import {
 } from '../../../common/rabbitMQ/rabbitmq-topology';
 
 @ApiTags('Меню')
-@Public()
+@AllowGuest()
+@Roles(...STAFF)
 @Controller('menu')
 export class MenuController {
   constructor(private readonly bus: CommandBusService) {}

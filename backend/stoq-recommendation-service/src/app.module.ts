@@ -1,3 +1,5 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { RestaurantInterceptor } from './common/tenant/restaurant.interceptor';
 import { Module } from "@nestjs/common";
 import { AppService } from "./app.service";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -16,6 +18,6 @@ import { RedisModule } from "./common/redis/redis.module";
     StatisticsModule,
     RedisModule,
   ],
-  providers: [AppService],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: RestaurantInterceptor },AppService],
 })
 export class AppModule {}

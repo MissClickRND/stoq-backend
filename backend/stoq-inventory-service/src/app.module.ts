@@ -1,3 +1,5 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { RestaurantInterceptor } from './common/tenant/restaurant.interceptor';
 import { Module } from "@nestjs/common";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -16,6 +18,6 @@ import { ScheduleModule } from "@nestjs/schedule";
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: RestaurantInterceptor },AppService],
 })
 export class AppModule {}

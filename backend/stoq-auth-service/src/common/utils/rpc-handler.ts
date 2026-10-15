@@ -1,4 +1,6 @@
-import { HttpException } from "@nestjs/common";
+import { HttpException, Logger } from "@nestjs/common";
+
+const logger = new Logger('AuthRPC');
 
 export async function executeRpc<T>(call: () => Promise<T>) {
   try {
@@ -28,6 +30,11 @@ export async function executeRpc<T>(call: () => Promise<T>) {
         success: false,
         error: { status: 404, message: "Запись не найдена" },
       };
+    const name = error instanceof Error ? error.name : 'UnknownError';
+    const frames = error instanceof Error ? error.stack?.split('\n').filter(line => /^\s+at /.test(line)).join('\n') : undefined;
+    const hint = code === 'P2021' || code === 'P2022'
+      ? ' Проверьте DATABASE_URL и миграции auth: отсутствует таблица или поле.' : '';
+    logger.error(`${name}${code ? ` [${code}]` : ''}: ошибка обработки auth RPC.${hint}`, frames);
     return {
       success: false,
       error: { status: 500, message: "Внутренняя ошибка auth-сервиса" },

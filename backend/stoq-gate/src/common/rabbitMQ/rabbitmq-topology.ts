@@ -17,6 +17,8 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  AUTH_GET_RESTAURANTS: 'command.auth.get_restaurants',
+  AUTH_GET_RESTAURANT: 'command.auth.get_restaurant',
   AUTH_REGISTER_USER: "command.auth.register_user",
   AUTH_REGISTER_RESTAURANT: "command.auth.register_restaurant",
   AUTH_LOGIN: "command.auth.login",

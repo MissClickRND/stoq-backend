@@ -5,6 +5,7 @@ import { Controller, Get, ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AuthController } from './auth.controller';
+import { RestaurantsController } from './restaurants.controller';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { CommandBusService } from '../common/rabbitMQ/command-bus.service';
@@ -50,6 +51,7 @@ describe('Gateway authentication over RPC', () => {
       imports: [ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }])],
       controllers: [
         AuthController,
+        RestaurantsController,
         InventoryController,
         SupplyController,
         OrderController,
@@ -162,9 +164,25 @@ describe('Gateway authentication over RPC', () => {
       .expect(200);
   });
 
+  it('lists restaurants publicly and rejects an employee selecting another restaurant', async () => {
+    await request(app.getHttpServer()).get('/restaurants').expect(200, []);
+    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', ROUTING_KEYS.AUTH_GET_RESTAURANTS, {}, { timeoutMs: 10000 });
+    sendCommand.mockClear();
+    await request(app.getHttpServer()).get('/inventory').set('Cookie', 'accessToken=ADMIN').set('X-Restaurant-Id', '8').expect(403);
+    expect(sendCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([undefined, '0', '-1', 'abc', '7.5'])('rejects a guest restaurant header %s before RPC', async selected => {
+    let call = request(app.getHttpServer()).get('/menu');
+    if (selected !== undefined) call = call.set('X-Restaurant-Id', selected);
+    await call.expect(400);
+    expect(sendCommand).not.toHaveBeenCalled();
+  });
+
   it('exposes the guest menu and order creation without internal stock or cost data', async () => {
     await request(app.getHttpServer())
       .get('/menu')
+      .set('X-Restaurant-Id', '7')
       .expect(200, [
         {
           id: 3,
@@ -176,6 +194,7 @@ describe('Gateway authentication over RPC', () => {
       ]);
     await request(app.getHttpServer())
       .post('/orders')
+      .set('X-Restaurant-Id', '7')
       .send({ items: [{ dishId: 3, quantity: 1 }] })
       .expect(201);
     expect(

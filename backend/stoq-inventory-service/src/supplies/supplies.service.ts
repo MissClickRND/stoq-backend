@@ -1,3 +1,4 @@
+import { restaurantId } from '../common/tenant/restaurant-context';
 import {
   ConflictException,
   BadRequestException,
@@ -33,12 +34,12 @@ export class SupplyService {
       throw new ForbiddenException('Сброс тестовых данных отключён');
     }
     const result = await this.prisma.$transaction(async (tx) => {
-      const movements = await tx.stockMovement.deleteMany({});
-      await tx.idempotencyKey.deleteMany({});
-      await tx.batchBalance.deleteMany({});
-      const batches = await tx.batch.deleteMany({});
-      await tx.supplyItem.deleteMany({});
-      const supplies = await tx.supply.deleteMany({});
+      const movements = await tx.stockMovement.deleteMany({ where: { restaurantId: restaurantId() }, });
+      await tx.idempotencyKey.deleteMany({ where: { restaurantId: restaurantId() }, });
+      await tx.batchBalance.deleteMany({ where: { batch: { restaurantId: restaurantId() } }, });
+      const batches = await tx.batch.deleteMany({ where: { restaurantId: restaurantId() }, });
+      await tx.supplyItem.deleteMany({ where: { supply: { restaurantId: restaurantId() } }, });
+      const supplies = await tx.supply.deleteMany({ where: { restaurantId: restaurantId() }, });
       return { supplies: supplies.count, batches: batches.count, movements: movements.count };
     });
     await this.publishStockChanged('BUSINESS_RESET');
@@ -94,7 +95,7 @@ export class SupplyService {
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         const supply = await tx.supply.create({
-          data: {
+          data: { restaurantId: restaurantId(),
             supplyNumber: dto.supplyNumber.trim(),
             supplier: dto.supplier.trim(),
             totalPrice,
@@ -108,7 +109,7 @@ export class SupplyService {
           const expiresAt = new Date(item.expiresAt);
 
           const batch = (dto.status ?? "RECEIVED") === "RECEIVED" ? await tx.batch.create({
-            data: {
+            data: { restaurantId: restaurantId(),
               supplyId: supply.id,
               productId: item.productId,
               initialQuantity: item.quantity,
@@ -191,7 +192,7 @@ export class SupplyService {
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        const previous = await tx.supply.findUnique({ where: { id }, include: { items: { orderBy: { id: 'asc' } } } });
+        const previous = await tx.supply.findUnique({ where: { restaurantId: restaurantId(),  id }, include: { items: { orderBy: { id: 'asc' } } } });
         if (!previous) throw new NotFoundException('Поставка не найдена');
         const status = dto.status ?? previous.status;
         const changedItems = previous.items.length !== dto.items.length || previous.items.some((item, index) => {
@@ -203,8 +204,8 @@ export class SupplyService {
         const changeStock = previous.status !== status || changedItems;
         let reusableBatchIds: number[] | undefined;
         if (previous.status === 'RECEIVED' && changeStock) {
-          const batches = await tx.batch.findMany({ where: { supplyId: id }, include: { balance: true }, orderBy: { id: 'asc' } });
-          const movements = await tx.stockMovement.count({ where: { batchId: { in: batches.map((batch) => batch.id) } } });
+          const batches = await tx.batch.findMany({ where: { restaurantId: restaurantId(),  supplyId: id }, include: { balance: true }, orderBy: { id: 'asc' } });
+          const movements = await tx.stockMovement.count({ where: { restaurantId: restaurantId(),  batchId: { in: batches.map((batch) => batch.id) } } });
           if (movements || batches.some((batch) => !batch.balance || Number(batch.balance.reservedQuantity) !== 0 ||
             Number(batch.balance.availableQuantity) !== Number(batch.initialQuantity))) {
             throw new ConflictException('Партии уже использованы или зарезервированы. Можно изменить реквизиты, но не состав и статус принятой поставки');
@@ -212,18 +213,18 @@ export class SupplyService {
           if (status === 'RECEIVED' && batches.length === dto.items.length && batches.every((batch, index) => batch.productId === dto.items[index].productId)) {
             reusableBatchIds = batches.map((batch) => batch.id);
           } else {
-            await tx.batchBalance.deleteMany({ where: { batchId: { in: batches.map((batch) => batch.id) } } });
-            await tx.batch.deleteMany({ where: { supplyId: id } });
+            await tx.batchBalance.deleteMany({ where: { batch: { restaurantId: restaurantId() },  batchId: { in: batches.map((batch) => batch.id) } } });
+            await tx.batch.deleteMany({ where: { restaurantId: restaurantId(),  supplyId: id } });
           }
         }
-        const supply = await tx.supply.update({ where: { id }, data: {
+        const supply = await tx.supply.update({ where: { restaurantId: restaurantId(),  id }, data: {
           supplyNumber: dto.supplyNumber.trim(), supplier: dto.supplier.trim(), status,
           receivedAt: dto.receivedAt ?? previous.receivedAt,
           totalPrice: dto.items.reduce((sum, item) => sum.plus(item.totalPrice), new Prisma.Decimal(0)),
         } });
         let items = previous.items;
         if (changedItems) {
-          await tx.supplyItem.deleteMany({ where: { supplyId: id } });
+          await tx.supplyItem.deleteMany({ where: { supply: { restaurantId: restaurantId() },  supplyId: id } });
           items = [];
           for (const item of dto.items) items.push(await tx.supplyItem.create({ data: {
             supplyId: id, productId: item.productId, quantity: item.quantity, totalPrice: item.totalPrice, expiresAt: new Date(item.expiresAt),
@@ -233,12 +234,12 @@ export class SupplyService {
           for (const [index, item] of dto.items.entries()) {
             if (reusableBatchIds) {
               const batchId = reusableBatchIds[index];
-              await tx.batch.update({ where: { id: batchId }, data: { initialQuantity: item.quantity,
+              await tx.batch.update({ where: { restaurantId: restaurantId(),  id: batchId }, data: { initialQuantity: item.quantity,
                 price: new Prisma.Decimal(item.totalPrice).div(item.quantity).toDecimalPlaces(6), expiresAt: new Date(item.expiresAt), status: 'ACTIVE' } });
-              await tx.batchBalance.update({ where: { batchId }, data: { availableQuantity: item.quantity, updatedAt: new Date() } });
+              await tx.batchBalance.update({ where: { batch: { restaurantId: restaurantId() },  batchId }, data: { availableQuantity: item.quantity, updatedAt: new Date() } });
               continue;
             }
-            const batch = await tx.batch.create({ data: { supplyId: id, productId: item.productId,
+            const batch = await tx.batch.create({ data: { restaurantId: restaurantId(),  supplyId: id, productId: item.productId,
               initialQuantity: item.quantity, price: new Prisma.Decimal(item.totalPrice).div(item.quantity).toDecimalPlaces(6),
               expiresAt: new Date(item.expiresAt), status: 'ACTIVE' } });
             await tx.batchBalance.create({ data: { batchId: batch.id, availableQuantity: item.quantity, reservedQuantity: 0 } });
@@ -282,7 +283,7 @@ export class SupplyService {
       .map((product) => product.id);
 
     const supplies = await this.prisma.supply.findMany({
-      where: query
+      where: { restaurantId: restaurantId(), AND: query
         ? {
             OR: [
               { supplyNumber: { contains: query, mode: "insensitive" } },
@@ -290,7 +291,7 @@ export class SupplyService {
               { items: { some: { productId: { in: productIds } } } },
             ],
           }
-        : {},
+        : {} },
       include: {
         items: {
           orderBy: { id: "asc" },
@@ -308,7 +309,7 @@ export class SupplyService {
 
   async findOne(id: number): Promise<SupplyWithItemsResponseDto> {
     const supply = await this.prisma.supply.findUnique({
-      where: { id },
+      where: { restaurantId: restaurantId(),  id },
       include: {
         items: {
           orderBy: { id: "asc" },

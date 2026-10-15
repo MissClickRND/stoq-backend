@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { accessTokenFrom } from './access-token';
 import { OPERATIONS, STAFF } from './auth.types';
 import { corsOptions } from '../cors-options';
+import { restaurantRoom, restaurantStorage } from '../common/tenant/restaurant-context';
 
 export class AuthIoAdapter extends IoAdapter {
   constructor(
@@ -35,10 +36,12 @@ export class AuthIoAdapter extends IoAdapter {
           const roles = options.namespace === '/inventory' ? STAFF : OPERATIONS;
           if (!roles.includes(user.role))
             throw new ForbiddenException('Недостаточно прав');
+          if (socket.data.user && socket.data.user.restaurantId !== user.restaurantId) throw new ForbiddenException('Ресторан сессии изменился');
           socket.data.user = user;
         };
         try {
           await verify();
+          await socket.join(restaurantRoom(socket.data.user.restaurantId));
         } catch {
           next(
             new Error(
@@ -51,7 +54,7 @@ export class AuthIoAdapter extends IoAdapter {
         socket.use(async (_packet, done) => {
           try {
             await verify();
-            done();
+            restaurantStorage.run(socket.data.user.restaurantId, () => done());
           } catch {
             done(new Error('Сессия недействительна'));
             socket.disconnect(true);

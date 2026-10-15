@@ -1,0 +1,14 @@
+ALTER TABLE "Unit" ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+ALTER TABLE "Dish" ADD COLUMN IF NOT EXISTS "restaurantId" INTEGER;
+DROP INDEX IF EXISTS "Unit_name_key";
+DROP INDEX IF EXISTS "Unit_shortName_key";
+DROP INDEX IF EXISTS "Product_name_key";
+DROP INDEX IF EXISTS "Dish_name_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "Unit_restaurantId_name_key" ON "Unit"("restaurantId", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "Unit_restaurantId_shortName_key" ON "Unit"("restaurantId", "shortName");
+CREATE UNIQUE INDEX IF NOT EXISTS "Product_restaurantId_name_key" ON "Product"("restaurantId", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "Dish_restaurantId_name_key" ON "Dish"("restaurantId", "name");
+CREATE INDEX IF NOT EXISTS "Unit_restaurantId_idx" ON "Unit"("restaurantId");
+CREATE INDEX IF NOT EXISTS "Product_restaurantId_idx" ON "Product"("restaurantId");
+CREATE INDEX IF NOT EXISTS "Dish_restaurantId_idx" ON "Dish"("restaurantId");

@@ -18,8 +18,8 @@ describe('Server order pricing', () => {
       const item = { id: stored.items.length + 1, ...data }; stored.items.push(item); return item;
     }) }, $transaction: jest.fn(async operations => Promise.all(operations)) };
     bus = { sendCommand: jest.fn(async (_exchange, _key, { id }) => ({ success: true,
-      data: { id, name: 'Салат', salePrice: 99.99, imageURL: '/salad.png' } })) };
-    service = new (OrdersService as any)(prisma, bus);
+      data: { id, name: 'Салат', salePrice: 99.99, imageURL: '/salad.png', recipeItems: [{ productId: 1, quantity: 1 }] } })) };
+    service = new (OrdersService as any)(prisma, bus, { publishOrderCreated: jest.fn() });
   });
   it('takes catalog prices through the existing command and returns exact line and order totals', async () => {
     const result: any = await service.create({ items: [{ dishId: 2, quantity: 3 }, { dishId: 3, quantity: 2 }] });
@@ -29,7 +29,7 @@ describe('Server order pricing', () => {
     bus.sendCommand.mockResolvedValue({ success: true, data: { id: 2, name: 'Новая цена', salePrice: 500 } });
     expect((await service.findOne(1) as any).totalPrice).toBe(499.95);
     expect((await service.findAll())[0].items[0].name).toBe('Салат');
-    expect(bus.sendCommand).toHaveBeenCalledTimes(2);
+    expect(bus.sendCommand).toHaveBeenCalledTimes(3);
   });
   it.each([null, undefined, -1, NaN, Infinity])('does not save a new order with an unknown/invalid catalog price (%s)', async salePrice => {
     bus.sendCommand.mockResolvedValue({ success: true, data: { id: 2, name: 'Салат', salePrice } });
@@ -37,7 +37,7 @@ describe('Server order pricing', () => {
     expect(prisma.order.create).not.toHaveBeenCalled();
   });
   it('accepts a real zero price', async () => {
-    bus.sendCommand.mockResolvedValue({ success: true, data: { id: 2, name: 'Вода', salePrice: 0 } });
+    bus.sendCommand.mockResolvedValue({ success: true, data: { id: 2, name: 'Вода', salePrice: 0, recipeItems: [{ productId: 1, quantity: 1 }] } });
     expect((await service.create({ items: [{ dishId: 2, quantity: 1 }] }) as any).totalPrice).toBe(0);
   });
   it('preserves safe catalog errors and never writes after a broker failure', async () => {
@@ -56,7 +56,7 @@ describe('Server order pricing', () => {
   });
   it('adds positions with new snapshots without replacing existing prices', async () => {
     await service.create({ items: [{ dishId: 2, quantity: 1 }] });
-    bus.sendCommand.mockResolvedValue({ success: true, data: { id: 3, name: 'Суп', salePrice: 12.5 } });
+    bus.sendCommand.mockResolvedValue({ success: true, data: { id: 3, name: 'Суп', salePrice: 12.5, recipeItems: [{ productId: 1, quantity: 1 }] } });
     const result: any = await service.addItems({ orderId: 1, dto: { items: [{ dishId: 3, quantity: 2 }] } });
     expect(result.totalPrice).toBe(124.99);
     expect(result.items.map(item => item.price)).toEqual([99.99, 12.5]);

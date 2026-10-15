@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  
+
 }
 
 enum StopListReason {
@@ -18,6 +18,8 @@ enum StopListReason {
 }
 
 model StopListItem {
+  restaurantId Int?
+
   id                  Int             @id @default(autoincrement())
   dishId              Int
   reason              StopListReason
@@ -30,5 +32,6 @@ model StopListItem {
   @@index([dishId])
   @@index([productId])
   @@index([detectedAt])
+  @@index([restaurantId])
 }
 

@@ -27,11 +27,11 @@ describe('Recommendation dependency graph', () => {
   });
   it('wraps the graph in the standard RPC envelope and preserves the existing stop-list handler', async () => {
     const { RecommendationsRPCController } = require('../recommendations-rpc.controller');
-    const recommendation = { getStopListFromServices: jest.fn().mockResolvedValue([{ id: 1 }]) };
+    const recommendation = { getStopListDishes: jest.fn().mockResolvedValue([{ id: 1 }]) };
     const graphService = { getGraph: jest.fn().mockResolvedValue(graph) };
     const consumer = new RecommendationsRPCController(recommendation, graphService);
-    expect(await consumer.getDependencyGraph()).toEqual({ success: true, data: graph });
+    expect(await consumer.getGraph()).toEqual({ success: true, data: graph });
     expect(await consumer.findAll({ search: 'Паста' })).toEqual({ success: true, data: [{ id: 1 }] });
-    expect(recommendation.getStopListFromServices).toHaveBeenCalledWith('Паста');
+    expect(recommendation.getStopListDishes).toHaveBeenCalledWith('Паста');
   });
 });

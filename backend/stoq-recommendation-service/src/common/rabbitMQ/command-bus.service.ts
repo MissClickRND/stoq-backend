@@ -1,3 +1,4 @@
+import { restaurantId } from '../tenant/restaurant-context';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { Injectable } from '@nestjs/common';
 
@@ -12,6 +13,7 @@ export class CommandBusService {
     options?: { timeoutMs?: number },
   ) {
     return this.amqpConnection.request({
+      headers: routingKey.startsWith('command.auth.') ? undefined : { restaurantId: restaurantId() },
       exchange,
       routingKey,
       payload,
@@ -28,6 +30,6 @@ export class CommandBusService {
     routingKey: string,
     payload: any,
   ) {
-    return this.amqpConnection.publish(exchange, routingKey, payload);
+    return this.amqpConnection.publish(exchange, routingKey, { ...payload, restaurantId: restaurantId() }, { headers: { restaurantId: restaurantId() } });
   }
 }

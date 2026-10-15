@@ -31,6 +31,17 @@ async function main() {
     const oldOrder = (await pool.query('SELECT date FROM "Order"')).rows[0];
     assert.equal(oldOrder.date.toISOString(), '2026-10-12T12:30:00.000Z');
     assert.deepEqual((await pool.query('SELECT name, price FROM "OrderItem" WHERE id = 1')).rows[0], { name: null, price: null });
+    await pool.query(`CREATE TABLE IF NOT EXISTS inventory.stock_movements (
+      id SERIAL PRIMARY KEY, order_id TEXT NOT NULL, batch_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
+      quantity DECIMAL NOT NULL, type TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+      CREATE TABLE IF NOT EXISTS inventory.idempotency_keys (
+      key TEXT PRIMARY KEY, order_id TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT now());`);
+    for (const name of ['stoq-catalog-service', 'stoq-inventory-service', 'stoq-order-service']) {
+      await pool.query(fs.readFileSync(path.join(servicePath(name), 'prisma/migrations/20261015160000_restaurant_isolation/migration.sql'), 'utf8'));
+    }
+    for (const table of ['"Unit"','"Product"','"Dish"','supply.supplies','inventory.batches','inventory.stock_movements','inventory.idempotency_keys','"Order"']) {
+      await pool.query(`UPDATE ${table} SET "restaurantId" = 1 WHERE "restaurantId" IS NULL`);
+    }
     console.log('Additive migrations preserve legacy data; unknown prices stay null.');
   } finally { await pool.end(); }
 
@@ -67,7 +78,7 @@ async function main() {
   await gate.listen(0, '127.0.0.1');
   const base = await gate.getUrl();
   async function api(method, route, body, status = method === 'POST' ? 201 : 200) {
-    const response = await fetch(base + route, { method, headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(base + route, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer business-test-admin' },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(20000) });
     const data = await response.json();
     assert.equal(response.status, status, route + ': ' + JSON.stringify(data));

@@ -1,3 +1,4 @@
+import { restaurantId } from '../tenant/restaurant-context';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { Injectable } from '@nestjs/common';
 
@@ -7,6 +8,7 @@ export class CommandBusService {
 
   public async sendCommand(exchange: string, routingKey: string, payload: any, options?: { timeoutMs?: number }) {
     return this.amqpConnection.request({
+      headers: routingKey.startsWith('command.auth.') ? undefined : { restaurantId: restaurantId() },
       exchange,
       routingKey,
       payload,

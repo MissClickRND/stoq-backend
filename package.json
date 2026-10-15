@@ -2,6 +2,7 @@
   "name": "stoq-backend",
   "private": true,
   "scripts": {
+    "test:restaurant-isolation": "npm run build:auth && npm run build:business && node scripts/test-restaurant-isolation.cjs",
     "auth:dev": "npm --prefix backend/stoq-auth-service run start:dev",
     "build:auth": "npm --prefix backend/stoq-auth-service run build && npm --prefix backend/stoq-gate run build",
     "test:auth": "node backend/stoq-auth-service/node_modules/jest/bin/jest.js --config backend/stoq-auth-service/package.json --runInBand && node backend/stoq-gate/node_modules/jest/bin/jest.js --config backend/stoq-gate/package.json --runInBand --testPathPatterns=auth",
