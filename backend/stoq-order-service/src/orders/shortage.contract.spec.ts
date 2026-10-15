@@ -7,7 +7,7 @@ import { ROUTING_KEYS } from '../common/rabbitMQ/rabbitmq-topology';
 import { executeRpc } from '../common/utils/rpc-handler';
 
 describe('Order stock error contract', () => {
-  it.each(['create', 'addItems', 'changeStatus'])('preserves missing products through RPC for %s', async (operation) => {
+  it.each(['create'])('preserves missing products through RPC for %s', async (operation) => {
     const items = [{ dishId: 1, quantity: 1 }];
     const error = { status: 400, message: 'Недостаточно товаров', products: [{ productId: 7, name: 'Молоко' }] };
     const prisma: any = {

@@ -34,6 +34,23 @@ interface InventoryItem {
 
 @Injectable()
 export class OrdersService {
+  private readonly creationQueues = new Map<number, Promise<void>>();
+
+  async create(dto: CreateOrderDto = {}) {
+    const tenant = restaurantId();
+    const previous = this.creationQueues.get(tenant) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    this.creationQueues.set(tenant, current);
+    await previous;
+    try {
+      return await this.createInOrder(dto);
+    } finally {
+      release();
+      if (this.creationQueues.get(tenant) === current) this.creationQueues.delete(tenant);
+    }
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly commandBusService: CommandBusService,
@@ -181,6 +198,7 @@ export class OrdersService {
         'Нельзя изменять завершённый или отменённый заказ',
       );
     }
+    return order;
   }
 
   private async checkStockAvailability(inventoryItems: InventoryItem[]) {
@@ -211,12 +229,8 @@ export class OrdersService {
 
   private async deductStock(
     orderId: number,
-    items: { dishId: number; quantity: number }[],
+    inventoryItems: InventoryItem[],
   ) {
-    const inventoryItems = this.toInventoryItems(
-      await this.resolveItems(items),
-    );
-
     let response: any;
     try {
       response = await this.commandBusService.sendCommand(
@@ -248,7 +262,7 @@ export class OrdersService {
     }
   }
 
-  async create(dto: CreateOrderDto = {}) {
+  private async createInOrder(dto: CreateOrderDto) {
     const date = dto.date === undefined ? new Date() : new Date(dto.date);
     const type = dto.type ?? 'dine-in';
     const guests = dto.guests ?? 1;
@@ -275,6 +289,7 @@ export class OrdersService {
     }
 
     const data: Prisma.OrderCreateInput = {
+      status: items.length ? OrderStatus.pending_reservation : OrderStatus.created,
       date,
       type,
       guests,
@@ -287,7 +302,7 @@ export class OrdersService {
       };
     }
 
-    const order = await this.toResponse(
+    let order = this.toResponse(
       await this.prisma.order.create({
         data: { ...data, restaurantId: restaurantId() },
         include: {
@@ -295,46 +310,33 @@ export class OrdersService {
         },
       }),
     );
+    if (items.length) {
+      try {
+        await this.deductStock(order.id, this.toInventoryItems(resolvedItems));
+      } catch (error) {
+        // Timeouts are ambiguous: keep pending until stock is reconciled.
+        if (error instanceof HttpException && error.getStatus() < 500) {
+          await this.prisma.order.update({
+            where: { restaurantId: restaurantId(), id: order.id },
+            data: { status: OrderStatus.rejected },
+          });
+        }
+        throw error;
+      }
+      order = this.toResponse(await this.prisma.order.update({
+        where: { restaurantId: restaurantId(), id: order.id },
+        data: { status: OrderStatus.created },
+        include: { items: true },
+      }));
+    }
     await this.eventPublisher.publishOrderCreated(order);
 
     return order;
   }
 
   async addItems(payload: { orderId: number; dto: AddOrderItemsDto }) {
-    const { orderId, dto } = payload;
-
-    await this.ensureOrderExists(orderId);
-
-    this.assertUniqueDishes(dto.items);
-
-    const dishIds = dto.items.map((item) => item.dishId);
-
-    const existingItems = await this.prisma.orderItem.findMany({
-      where: { order: { restaurantId: restaurantId() },  orderId },
-      select: { dishId: true },
-    });
-
-    const existingDishIds = existingItems.map((item) => item.dishId);
-
-    if (dishIds.some((id) => existingDishIds.includes(id))) {
-      throw new ConflictException('Одно или несколько блюд уже есть в заказе');
-    }
-
-    const resolvedItems = await this.resolveItems(dto.items);
-    const pricedItems = this.priceItems(resolvedItems);
-    await this.checkStockAvailability(this.toInventoryItems(resolvedItems));
-    await this.prisma.$transaction(
-      pricedItems.map((item) =>
-        this.prisma.orderItem.create({
-          data: {
-            orderId,
-            ...item,
-          },
-        }),
-      ),
-    );
-
-    return this.findOne(orderId);
+    await this.ensureOrderExists(payload.orderId);
+    throw new ConflictException('Состав заказа уже зафиксирован. Создайте новый заказ с нужными блюдами');
   }
 
   async findAll() {
@@ -406,28 +408,26 @@ export class OrdersService {
   }
 
   async changeStatus(payload: { id: number; status: OrderStatus }) {
-    await this.ensureOrderExists(payload.id);
-
+    if (payload.status !== OrderStatus.completed && payload.status !== OrderStatus.rejected) {
+      throw new BadRequestException('Допустимые статусы: completed, rejected');
+    }
+    const current = await this.ensureOrderExists(payload.id);
+    if (current.status === OrderStatus.pending_reservation) {
+      throw new ConflictException('Списание по заказу ещё не подтверждено. Проверьте состояние склада');
+    }
     const order = await this.prisma.order.update({
-      where: { restaurantId: restaurantId(),  id: payload.id },
-      data: {
-        status: payload.status,
-      },
+      where: { restaurantId: restaurantId(), id: payload.id, status: current.status },
+      data: { status: payload.status },
       include: { items: true },
     });
-
-    if (
-      payload.status === OrderStatus.confirmed ||
-      payload.status === OrderStatus.completed
-    ) {
-      await this.deductStock(order.id, order.items);
-    }
-
     return this.toResponse(order);
   }
 
   async remove(id: number) {
-    await this.ensureOrderExists(id);
+    const current = await this.ensureOrderExists(id);
+    if (current.status === OrderStatus.pending_reservation) {
+      throw new ConflictException('Списание по заказу ещё не подтверждено. Проверьте состояние склада');
+    }
 
     await this.prisma.$transaction([
       this.prisma.orderItem.deleteMany({

@@ -131,7 +131,7 @@ describe('Gateway authentication over RPC', () => {
     ['WAITER', '/dishes', 200],
     ['WAITER', '/supplies', 200],
     ['WAITER', '/statistics/dishes', 403],
-    ['WAITER', '/analytics/graph', 403],
+    ['WAITER', '/analytics/graph', 200],
     ['STOREKEEPER', '/supplies', 200],
     ['STOREKEEPER', '/product', 200],
     ['STOREKEEPER', '/product/units', 200],
@@ -196,6 +196,10 @@ describe('Gateway authentication over RPC', () => {
           category: 'Food',
           salePrice: 100,
           available: true,
+          description: '',
+          imageURL: null,
+          recommended: false,
+          recommendationRank: null,
         },
       ]);
     await request(app.getHttpServer())

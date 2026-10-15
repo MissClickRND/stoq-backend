@@ -391,6 +391,10 @@ export class InventoryService {
     const now = new Date();
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Claim the idempotency key inside the same transaction as all balances.
+      await tx.idempotencyKey.create({
+        data: { restaurantId: restaurantId(), key: dto.idempotencyKey, orderId: dto.orderId },
+      });
       await this.checkStockAvailability(dto.items, tx);
 
       const movementsToCreate: Prisma.StockMovementCreateManyInput[] = [];
@@ -423,13 +427,17 @@ export class InventoryService {
             batch.status,
           );
 
-          await tx.batchBalance.update({
-            where: { batch: { restaurantId: restaurantId() },  batchId: batch.id },
+          const claimed = await tx.batchBalance.updateMany({
+            where: { batch: { restaurantId: restaurantId() }, batchId: batch.id,
+              availableQuantity: available },
             data: {
               availableQuantity: { decrement: deductAmount },
               updatedAt: now,
             },
           });
+          if (claimed.count !== 1) {
+            throw new ConflictException('Остаток уже занят другим заказом. Обновите доступность блюд');
+          }
 
           if (newStatus !== batch.status) {
             await tx.batch.update({
@@ -449,17 +457,25 @@ export class InventoryService {
 
           remainingToDeduct = remainingToDeduct.minus(deductAmount);
         }
+        if (!remainingToDeduct.isZero()) {
+          throw new ConflictException('Остаток уже занят другим заказом. Обновите доступность блюд');
+        }
       }
 
       if (movementsToCreate.length > 0) {
         await tx.stockMovement.createMany({ data: movementsToCreate.map(item => ({ ...item, restaurantId: restaurantId() })) });
       }
 
-      await tx.idempotencyKey.create({
-        data: { restaurantId: restaurantId(),  key: dto.idempotencyKey, orderId: dto.orderId },
-      });
-
       return { success: true };
+    }).catch(async (error) => {
+      if (error?.code === 'P2002') {
+        const processed = await this.prisma.idempotencyKey.findUnique({
+          where: { restaurantId: restaurantId(), key: dto.idempotencyKey },
+        });
+        if (processed?.orderId === dto.orderId) return { success: true };
+        if (processed) throw new ConflictException('Idempotency key already used for a different order');
+      }
+      throw error;
     });
 
     if (result.success) {

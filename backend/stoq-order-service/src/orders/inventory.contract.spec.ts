@@ -56,7 +56,7 @@ describe('Order inventory product mapping', () => {
           id: 9,
           date: new Date(),
           ...data,
-          items,
+          items: items.map(item => ({ ...item, price: dishes[item.dishId].salePrice })),
         })),
       },
       orderItem: {
@@ -86,38 +86,81 @@ describe('Order inventory product mapping', () => {
       ROUTING_KEYS.CHECK_STOCK_INVENTORY,
       { dto: products },
     );
-    expect(bus.sendCommand).toHaveBeenCalledTimes(3);
+    expect(bus.sendCommand).toHaveBeenCalledTimes(4);
     expect(order.items).toMatchObject(items);
     expect(order.totalPrice).toBe(700);
   });
 
-  it('uses recipe products when adding dishes', async () => {
-    await service.addItems({ orderId: 9, dto: { items } });
-    expect(bus.sendCommand).toHaveBeenCalledWith(
-      EXCHANGES.COMMANDS,
-      ROUTING_KEYS.CHECK_STOCK_INVENTORY,
-      { dto: products },
-    );
-    expect(prisma.orderItem.create).toHaveBeenCalledTimes(2);
+  it('freezes items after processing starts', async () => {
+    await expect(service.addItems({ orderId: 9, dto: { items } })).rejects.toThrow('зафиксирован');
+    expect(prisma.orderItem.create).not.toHaveBeenCalled();
   });
 
-  it.each([OrderStatus.confirmed, OrderStatus.completed])(
-    'deducts recipe products for status %s',
-    async (status) => {
-      await service.changeStatus({ id: 9, status });
-      expect(bus.sendCommand).toHaveBeenCalledWith(
-        EXCHANGES.COMMANDS,
-        ROUTING_KEYS.DEDUCT_STOCK_INVENTORY,
-        {
-          dto: {
-            orderId: '9',
-            idempotencyKey: 'order-9-deduction',
-            items: products,
-          },
-        },
-      );
-    },
-  );
+  it.each([OrderStatus.completed, OrderStatus.rejected])('does not deduct again for %s', async status => {
+    await service.changeStatus({ id: 9, status });
+    expect(bus.sendCommand).not.toHaveBeenCalled();
+  });
+
+  it('deducts at creation before publishing processing status', async () => {
+    await service.create({ items });
+    expect(prisma.order.create.mock.calls[0][0].data.status).toBe(OrderStatus.pending_reservation);
+    expect(bus.sendCommand).toHaveBeenCalledWith(EXCHANGES.COMMANDS, ROUTING_KEYS.DEDUCT_STOCK_INVENTORY,
+      { dto: { orderId: '9', idempotencyKey: 'order-9-deduction', items: products } });
+    expect(prisma.order.update.mock.calls[0][0].data.status).toBe(OrderStatus.created);
+  });
+
+  it('keeps ambiguous deduction pending and never publishes processing', async () => {
+    const original = bus.sendCommand.getMockImplementation();
+    bus.sendCommand.mockImplementation(async (...args) => {
+      if(args[1] === ROUTING_KEYS.DEDUCT_STOCK_INVENTORY) throw new Error('timeout');
+      return original(...args);
+    });
+    await expect(service.create({ items })).rejects.toThrow('Сервис склада');
+    expect(prisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects the technical order when another order has already consumed stock', async () => {
+    const original = bus.sendCommand.getMockImplementation();
+    bus.sendCommand.mockImplementation(async (...args) => {
+      if (args[1] === ROUTING_KEYS.DEDUCT_STOCK_INVENTORY) {
+        return { success: false, error: { status: 409, message: 'Остаток уже занят' } };
+      }
+      return original(...args);
+    });
+    await expect(service.create({ items })).rejects.toThrow('Остаток уже занят');
+    expect(prisma.order.update).toHaveBeenCalledWith({
+      where: { restaurantId: expect.any(Number), id: 9 },
+      data: { status: OrderStatus.rejected },
+    });
+    expect(prisma.order.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not allow finishing or rejecting an ambiguous pending order', async () => {
+    prisma.order.findUnique.mockResolvedValue({ id: 9, status: OrderStatus.pending_reservation });
+    await expect(service.changeStatus({ id: 9, status: OrderStatus.rejected })).rejects.toThrow('не подтверждено');
+    expect(prisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it('gives the first request the last portion even while its catalog call is slow', async () => {
+    let release; const slow = new Promise(resolve => { release = resolve; });
+    let stock = 1; let first = true;
+    bus.sendCommand.mockImplementation(async (_exchange,key,payload) => {
+      if(key === ROUTING_KEYS.GET_DISHES_BY_ID) {
+        if(first){ first=false; await slow; }
+        return { success: true, data: dishes[payload.id] };
+      }
+      if(stock === 0) return { success: false, error: { status: 400, message: 'Недостаточно продуктов' } };
+      if(key === ROUTING_KEYS.DEDUCT_STOCK_INVENTORY) stock--;
+      return { success: true };
+    });
+    const earliest=service.create({ items: [{ dishId: 101, quantity: 1 }] });
+    const later=service.create({ items: [{ dishId: 202, quantity: 1 }] });
+    release();
+    const results=await Promise.allSettled([earliest,later]);
+    expect(results.map(result=>result.status)).toEqual(['fulfilled','rejected']);
+    expect(stock).toBe(0);
+    expect(prisma.order.create).toHaveBeenCalledTimes(1);
+  });
 
   it.each([
     undefined,

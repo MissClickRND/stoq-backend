@@ -29,7 +29,7 @@ describe('Server order pricing', () => {
     bus.sendCommand.mockResolvedValue({ success: true, data: { id: 2, name: 'Новая цена', salePrice: 500 } });
     expect((await service.findOne(1) as any).totalPrice).toBe(499.95);
     expect((await service.findAll())[0].items[0].name).toBe('Салат');
-    expect(bus.sendCommand).toHaveBeenCalledTimes(3);
+    expect(bus.sendCommand).toHaveBeenCalledTimes(4);
   });
   it.each([null, undefined, -1, NaN, Infinity])('does not save a new order with an unknown/invalid catalog price (%s)', async salePrice => {
     bus.sendCommand.mockResolvedValue({ success: true, data: { id: 2, name: 'Салат', salePrice } });
@@ -54,12 +54,9 @@ describe('Server order pricing', () => {
     expect(await service.findOne(1)).toMatchObject({ totalPrice: 0 });
     expect(bus.sendCommand).not.toHaveBeenCalled();
   });
-  it('adds positions with new snapshots without replacing existing prices', async () => {
+  it('keeps the priced item snapshot immutable after stock deduction', async () => {
     await service.create({ items: [{ dishId: 2, quantity: 1 }] });
-    bus.sendCommand.mockResolvedValue({ success: true, data: { id: 3, name: 'Суп', salePrice: 12.5, recipeItems: [{ productId: 1, quantity: 1 }] } });
-    const result: any = await service.addItems({ orderId: 1, dto: { items: [{ dishId: 3, quantity: 2 }] } });
-    expect(result.totalPrice).toBe(124.99);
-    expect(result.items.map(item => item.price)).toEqual([99.99, 12.5]);
-    expect(result.items.map(item => item.totalPrice)).toEqual([99.99, 25]);
+    await expect(service.addItems({ orderId: 1, dto: { items: [{ dishId: 3, quantity: 2 }] } })).rejects.toThrow('зафиксирован');
+    expect((await service.findOne(1)).totalPrice).toBe(99.99);
   });
 });

@@ -96,8 +96,8 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Завершить заказ' })
-  @ApiOkResponse({ type: OrderResponseDto, description: 'Заказ завершён' })
+  @ApiOperation({ summary: 'Завершить или отклонить заказ' })
+  @ApiOkResponse({ type: OrderResponseDto, description: 'Статус заказа изменён' })
   changeStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ChangeStatusDto,

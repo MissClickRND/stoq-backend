@@ -83,7 +83,7 @@ export class OrdersRPCController {
     routingKey: ROUTING_KEYS.CHANGE_ORDER_STATUS,
     queue: QUEUES.ORDERS_COMMANDS,
   })
-  changeStatus(payload: { id: number; status: 'completed' }) {
+  changeStatus(payload: { id: number; status: 'completed' | 'rejected' }) {
     return executeRpc(() => this.ordersService.changeStatus(payload));
   }
 }

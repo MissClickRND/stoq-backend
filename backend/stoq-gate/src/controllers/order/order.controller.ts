@@ -127,9 +127,9 @@ export class OrderController {
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Завершить заказ' })
+  @ApiOperation({ summary: 'Завершить или отклонить заказ' })
   @ApiBadRequestResponse({ type: OrderErrorDto, description: 'Ошибка списания продуктов' })
-  @ApiOkResponse({ type: OrderResponseDto, description: 'Заказ завершён' })
+  @ApiOkResponse({ type: OrderResponseDto, description: 'Статус заказа изменён' })
   async changeStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: ChangeStatusDto) {
     return this.handleRpcResponse(await this.commandBusService.sendCommand(EXCHANGES.COMMANDS,
       ROUTING_KEYS.CHANGE_ORDER_STATUS, { id, status: dto.status }));
