@@ -24,6 +24,7 @@ for service in "${services[@]}"; do
     config=prisma.config.ts
     [[ -f "$directory/$config" ]] || config=prisma7.config.ts
     (set -a; source "/etc/stoq/$service.env"; set +a; cd "$directory"; runuser -u stoq-backend --preserve-environment -- ./node_modules/.bin/prisma migrate deploy --config "$config")
+    (set -a; source "/etc/stoq/$service.env"; set +a; runuser -u stoq-backend --preserve-environment -- /usr/local/bin/node "$target/deploy/check-db-access.cjs")
   fi
 done
 ln -s "$target" "$base/.current-$release"
