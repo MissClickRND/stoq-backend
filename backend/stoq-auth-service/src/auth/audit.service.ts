@@ -49,7 +49,7 @@ export class AuditService {
   async stockCursor(restaurantId: number, afterId?: number) {
     if (afterId != null) {
       if (!Number.isSafeInteger(afterId) || afterId < 0) throw new BadRequestException('Некорректный курсор движений');
-      await this.prisma.activitySyncState.upsert({ where: { restaurantId }, create: { restaurantId, stockMovementId: 0 }, update: {} });
+      await this.prisma.activitySyncState.createMany({ data: [{ restaurantId, stockMovementId: 0 }], skipDuplicates: true });
       await this.prisma.activitySyncState.updateMany({ where: { restaurantId, stockMovementId: { lt: afterId } }, data: { stockMovementId: afterId } });
     }
     return { stockCursor: (await this.prisma.activitySyncState.findUnique({ where: { restaurantId } }))?.stockMovementId ?? 0 };
