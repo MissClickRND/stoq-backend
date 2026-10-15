@@ -8,14 +8,16 @@ target="$base/releases/$release"
 test -f "$target/backend/stoq-gate/dist/main.js"
 exec 9>"$base/deploy.lock"
 flock -x 9
-services=(stoq-auth-service stoq-catalog-service stoq-inventory-service stoq-order-service stoq-recommendation-service stoq-ai-service stoq-gate)
+services=(stoq-auth-service stoq-catalog-service stoq-inventory-service stoq-order-service stoq-recommendation-service stoq-ai-service stoq-gate stoq-telegram-service)
 previous=$(readlink -f "$base/current" || true)
 install -d -m 700 /var/backups/stoq
 chown -R root:stoq-backend "$target"
 chmod -R g+rX,o-rwx "$target"
 for service in "${services[@]}"; do
   directory="$target/backend/$service"
-  test -f "$directory/dist/main.js"
+  entry=dist/main.js
+  [[ $service != stoq-telegram-service ]] || entry=dist/src/main.js
+  test -f "$directory/$entry"
   test -f "/etc/stoq/$service.env"
   if [[ -d "$directory/prisma" ]]; then
     database=$(source "/etc/stoq/$service.env"; printf '%s' "${DATABASE_URL##*/}")
@@ -24,6 +26,11 @@ for service in "${services[@]}"; do
     config=prisma.config.ts
     [[ -f "$directory/$config" ]] || config=prisma7.config.ts
     (set -a; source "/etc/stoq/$service.env"; set +a; cd "$directory"; runuser -u stoq-backend --preserve-environment -- ./node_modules/.bin/prisma migrate deploy --config "$config")
+    (set -a; source "/etc/stoq/$service.env"; set +a; runuser -u stoq-backend --preserve-environment -- /usr/local/bin/node "$target/deploy/check-db-access.cjs")
+  fi
+  if [[ $service == stoq-telegram-service ]]; then
+    runuser -u postgres -- pg_dump -Fc telegram_db > "/var/backups/stoq/telegram_db-$release.dump"
+    (set -a; source "/etc/stoq/$service.env"; set +a; cd "$directory"; runuser -u stoq-backend --preserve-environment -- /usr/local/bin/npm run migrate)
     (set -a; source "/etc/stoq/$service.env"; set +a; runuser -u stoq-backend --preserve-environment -- /usr/local/bin/node "$target/deploy/check-db-access.cjs")
   fi
 done

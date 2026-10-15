@@ -44,6 +44,7 @@ jobs:
           npm run test:auth
           npm run test:ai
           npm run test:business
+          npm run test:telegram
       - name: Validate migrations against empty databases
         env:
           PGPASSWORD: ci-only-password
@@ -59,6 +60,17 @@ jobs:
             (cd "$directory"; DATABASE_URL="postgresql://stoq_ci_app:$PGPASSWORD@127.0.0.1:5432/$database" ./node_modules/.bin/prisma migrate deploy --config "$config")
             DATABASE_URL="postgresql://stoq_ci_app:$PGPASSWORD@127.0.0.1:5432/$database" node deploy/check-db-access.cjs
           done
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE ci_telegram OWNER stoq_ci_app"
+          (cd backend/stoq-telegram-service; DATABASE_URL="postgresql://stoq_ci_app:$PGPASSWORD@127.0.0.1:5432/ci_telegram" npm run migrate)
+          DATABASE_URL="postgresql://stoq_ci_app:$PGPASSWORD@127.0.0.1:5432/ci_telegram" node deploy/check-db-access.cjs
+      - name: Verify Telegram preferences and delivery persistence on PostgreSQL
+        env:
+          DATABASE_URL: postgresql://stoq_ci_app:ci-only-password@127.0.0.1:5432/ci_telegram
+        run: npm --prefix backend/stoq-telegram-service run test:persistence
+      - name: Verify independent Telegram sessions on PostgreSQL
+        env:
+          DATABASE_URL: postgresql://stoq_ci_app:ci-only-password@127.0.0.1:5432/ci_auth
+        run: node scripts/test-telegram-auth-persistence.cjs
       - name: Reject missing inventory permissions
         env:
           PGPASSWORD: ci-only-password

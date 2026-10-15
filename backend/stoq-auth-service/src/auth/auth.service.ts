@@ -16,7 +16,7 @@ import { LoginDto } from "./dto/login.dto";
 import { RegisterRestaurantDto } from "./dto/register-restaurant.dto";
 import { ApproveUserDto } from "./dto/approve-user.dto";
 import { UpdateRestaurantDto } from "./dto/update-restaurant.dto";
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { parseDurationMs } from './utils/parse-duration-ms';
 import type { AuthUser } from './types/auth-user.type';
 import { ACTIVE_ROLES, CreateInvitationDto, SetUserBlockDto, SetUserRoleDto } from './dto/admin.dto';
@@ -205,6 +205,63 @@ export class AuthService {
         return { user: safeUser, ...tokens };
     }
 
+    private telegramIdentity(telegramUserId: string) {
+        if (typeof telegramUserId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(telegramUserId)) {
+            throw new BadRequestException('Некорректный Telegram ID');
+        }
+        return telegramUserId;
+    }
+
+    private telegramDigest(sessionToken: string) {
+        if (typeof sessionToken !== 'string' || !/^[a-f0-9]{64}$/.test(sessionToken)) {
+            throw new UnauthorizedException('Сессия Telegram недействительна');
+        }
+        return createHash('sha256').update(sessionToken).digest('hex');
+    }
+
+    async telegramLogin(dto: LoginDto, telegramUserId: string) {
+        this.telegramIdentity(telegramUserId);
+        const user = await this.prisma.user.findUnique({
+            where: { email: dto.email.toLowerCase().trim() },
+            select: { ...accountSelect, passwordHash: true, tokenVersion: true, blocked: true },
+        });
+        if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+            throw new BadRequestException('Неверный email или пароль');
+        }
+        if (user.blocked || (user.role !== Role.ADMIN && user.role !== Role.MANAGER)) {
+            throw new ForbiddenException('Недостаточно прав для Telegram');
+        }
+        const sessionToken = randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 30 * 86400000);
+        const data = { tokenDigest: this.telegramDigest(sessionToken), userId: user.id, restaurantId: user.restaurantId, tokenVersion: user.tokenVersion, expiresAt };
+        await this.prisma.telegramSession.upsert({ where: { telegramUserId }, create: { telegramUserId, ...data }, update: data });
+        return { user: this.telegramSafeUser(user), sessionToken, expiresAt: expiresAt.toISOString() };
+    }
+
+    private telegramSafeUser(user: AuthUser): AuthUser {
+        return { id: user.id, fullName: user.fullName, email: user.email, role: user.role, restaurantId: user.restaurantId };
+    }
+
+    async telegramVerify(sessionToken: string, telegramUserId: string): Promise<AuthUser> {
+        this.telegramIdentity(telegramUserId);
+        const session = await this.prisma.telegramSession.findUnique({
+            where: { tokenDigest: this.telegramDigest(sessionToken) },
+            include: { user: { select: { ...accountSelect, tokenVersion: true, blocked: true } } },
+        });
+        if (!session || session.telegramUserId !== telegramUserId || session.expiresAt <= new Date() ||
+            session.user.blocked || session.user.tokenVersion !== session.tokenVersion ||
+            session.user.restaurantId !== session.restaurantId ||
+            (session.user.role !== Role.ADMIN && session.user.role !== Role.MANAGER)) {
+            throw new UnauthorizedException('Сессия Telegram недействительна');
+        }
+        return this.telegramSafeUser(session.user);
+    }
+
+    async telegramLogout(sessionToken: string, telegramUserId: string) {
+        this.telegramIdentity(telegramUserId);
+        await this.prisma.telegramSession.deleteMany({ where: { telegramUserId, tokenDigest: this.telegramDigest(sessionToken) } });
+        return { ok: true };
+    }
     async logout(userId: number) {
         await this.prisma.user.update({
             where: { id: userId },

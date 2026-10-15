@@ -2,7 +2,7 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 export NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=1536}
-for service in auth catalog inventory order recommendation ai gate; do
+for service in auth catalog inventory order recommendation ai gate telegram; do
   directory="$root/backend/stoq-$service-service"
   [[ $service != gate ]] || directory="$root/backend/stoq-gate"
   cd "$directory"

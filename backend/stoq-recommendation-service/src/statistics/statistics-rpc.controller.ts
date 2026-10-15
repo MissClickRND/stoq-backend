@@ -12,6 +12,11 @@ import { StatisticsService } from "./statistics.service";
 export class StatisticsRPCController {
   constructor(private readonly statisticsService: StatisticsService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_DAILY_STATISTICS, queue: QUEUES.RECOMMENDATION_COMMANDS })
+  getDailyStatistics(payload: { date: string }) {
+    return executeRpc(() => this.statisticsService.getDailyStatistics(payload?.date));
+  }
+
   @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_DASHBOARD_STATISTICS, queue: QUEUES.RECOMMENDATION_COMMANDS })
   getDashboardStatistics(payload: { days?: number }) {
     return executeRpc(() => this.statisticsService.getDashboardStatistics(payload.days));

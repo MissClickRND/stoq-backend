@@ -31,10 +31,14 @@ export class StatisticsService {
     if (![7, 14, 30].includes(days)) throw new BadRequestException('Допустимые периоды: 7, 14, 30 дней');
   }
 
-  private async periodData(days: number): Promise<[OrderPeriod, CatalogDish[]]> {
-    this.validateDays(days);
+  private async periodData(days: number, date?: string): Promise<[OrderPeriod, CatalogDish[]]> {
+    if (date === undefined) this.validateDays(days);
+    else {
+      const parsed = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : new Date(NaN);
+      if (days !== 1 || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw new BadRequestException('Некорректная дата сводки');
+    }
     const [orders, catalog] = await Promise.all([
-      this.commandBusService.sendCommand(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_ORDER_PERIOD_STATISTICS, { days }) as Promise<any>,
+      this.commandBusService.sendCommand(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_ORDER_PERIOD_STATISTICS, { days, ...(date === undefined ? {} : { date }) }) as Promise<any>,
       this.commandBusService.sendCommand(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_DISHES, {}) as Promise<any>,
     ]).catch(() => { throw new ServiceUnavailableException('Не удалось получить статистику заказов или каталог'); });
     for (const response of [orders, catalog]) {
@@ -51,6 +55,15 @@ export class StatisticsService {
       total += cost * sale.quantity;
     }
     return round(total);
+  }
+
+  async getDailyStatistics(date: string) {
+    if (date === undefined) throw new BadRequestException('Укажите дату сводки');
+    const [orders, catalog] = await this.periodData(1, date);
+    const cost = this.cost(orders.points.flatMap(point => point.dishes), catalog);
+    const { revenue, completed, orders: count } = orders.summary;
+    return { date, timezone: 'Europe/Moscow', revenue, earning: revenue == null || cost == null ? null : round(revenue - cost),
+      orders: count, completed, averageCheck: revenue == null ? null : completed ? round(revenue / completed) : 0 };
   }
 
   async getDashboardStatistics(days = 14) {

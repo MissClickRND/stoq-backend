@@ -21,6 +21,13 @@ describe('Server dashboard and dish statistics', () => {
     expect(result.summary).toEqual({ revenue: 300, earning: 240, averageCheck: 150, orders: 3, completed: 2 });
     expect(result.points[0]).toEqual({ date: '2026-10-16', label: '16 окт.', revenue: 300, earning: 240, orders: 3 });
   });
+  it('returns exact daily summary using the existing captured sales and catalog cost logic', async () => {
+    const result = await service.getDailyStatistics('2026-10-16');
+    expect(bus.sendCommand).toHaveBeenCalledWith('app.commands', 'command.order.get_period_statistics', { days: 1, date: '2026-10-16' });
+    expect(result).toEqual({ date: '2026-10-16', timezone: 'Europe/Moscow', revenue: 300, earning: 240, orders: 3, completed: 2, averageCheck: 150 });
+    dishes[0].costPrice = null;
+    expect((await service.getDailyStatistics('2026-10-16')).earning).toBeNull();
+  });
   it('keeps unknown costs and prices unknown rather than substituting zero', async () => {
     dishes[0].costPrice = null;
     expect((await service.getDashboardStatistics(7)).summary.earning).toBeNull();

@@ -2,6 +2,9 @@
   "name": "stoq-backend",
   "private": true,
   "scripts": {
+    "telegram:dev": "npm --prefix backend/stoq-telegram-service run start:dev",
+    "build:telegram": "npm --prefix backend/stoq-telegram-service run build",
+    "test:telegram": "npm --prefix backend/stoq-telegram-service test",
     "test:restaurant-isolation": "npm run build:auth && npm run build:business && node scripts/test-restaurant-isolation.cjs",
     "auth:dev": "npm --prefix backend/stoq-auth-service run start:dev",
     "build:auth": "npm --prefix backend/stoq-auth-service run build && npm --prefix backend/stoq-gate run build",

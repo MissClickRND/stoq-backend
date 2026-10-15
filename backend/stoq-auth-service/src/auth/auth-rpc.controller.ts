@@ -142,6 +142,20 @@ export class AuthRPCController {
     );
   }
 
+  @rpc(ROUTING_KEYS.AUTH_TELEGRAM_LOGIN)
+  telegramLogin(payload: { dto: LoginDto; telegramUserId: string }) {
+    return executeRpc(async () => this.auth.telegramLogin(await this.dto(LoginDto, payload?.dto), payload?.telegramUserId));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_TELEGRAM_VERIFY)
+  telegramVerify(payload: { sessionToken: string; telegramUserId: string }) {
+    return executeRpc(() => this.auth.telegramVerify(payload?.sessionToken, payload?.telegramUserId));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_TELEGRAM_LOGOUT)
+  telegramLogout(payload: { sessionToken: string; telegramUserId: string }) {
+    return executeRpc(() => this.auth.telegramLogout(payload?.sessionToken, payload?.telegramUserId));
+  }
   @rpc(ROUTING_KEYS.AUTH_LOGIN)
   login(payload: { dto: LoginDto }) {
     return executeRpc(async () =>

@@ -13,6 +13,16 @@ describe('Order statistics source', () => {
     service = new OrdersService(prisma, {} as any, {} as any);
   });
   afterEach(() => jest.useRealTimers());
+  it('aggregates one complete Moscow day independently of current time', async () => {
+    const result = await service.getPeriodStatistics(1, '2026-10-14');
+    expect(prisma.order.findMany.mock.calls[0][0].where.date).toEqual({ gte: new Date('2026-10-13T21:00:00Z'), lte: new Date('2026-10-14T20:59:59.999Z') });
+    expect(result.points).toHaveLength(1);
+    expect(result.points[0].date).toBe('2026-10-14');
+  });
+  it.each(['2026-02-30', 'tomorrow', '2026-10-17'])('rejects invalid or future business date %s', async date => {
+    await expect(service.getPeriodStatistics(1, date)).rejects.toThrow();
+    expect(prisma.order.findMany).not.toHaveBeenCalled();
+  });
   it('uses tenant and business date with Moscow boundaries, excludes future orders', async () => {
     const result = await service.getPeriodStatistics(7);
     expect(prisma.order.findMany.mock.calls[0][0].where).toEqual({ restaurantId: 1,

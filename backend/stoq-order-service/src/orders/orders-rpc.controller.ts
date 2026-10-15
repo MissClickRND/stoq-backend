@@ -15,8 +15,8 @@ export class OrdersRPCController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_ORDER_PERIOD_STATISTICS, queue: QUEUES.ORDERS_COMMANDS })
-  getPeriodStatistics(payload: { days?: number }) {
-    return executeRpc(() => this.ordersService.getPeriodStatistics(payload.days));
+  getPeriodStatistics(payload: { days?: number; date?: string }) {
+    return executeRpc(() => this.ordersService.getPeriodStatistics(payload.days, payload.date));
   }
 
   @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.RESET_ORDER_DATA, queue: QUEUES.ORDERS_COMMANDS })

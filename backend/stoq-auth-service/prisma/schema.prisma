@@ -22,6 +22,7 @@ model User {
   fullName           String
   email              String     @unique
   passwordHash       String
+  telegramSessions   TelegramSession[]
   hashedRefreshToken String?
   tokenVersion       Int        @default(0)
   blocked            Boolean    @default(false)
@@ -82,4 +83,18 @@ model ActivityLog {
 model ActivitySyncState {
   restaurantId Int @id
   stockMovementId Int @default(0)
+}
+
+model TelegramSession {
+  telegramUserId String @id @db.VarChar(20)
+  tokenDigest String @unique @db.Char(64)
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId Int
+  tokenVersion Int
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

@@ -4,7 +4,7 @@ set -euo pipefail
 umask 077
 target="/var/backups/stoq/daily/$(date -u +%Y%m%dT%H%M%SZ)"
 install -d -m700 "$target"
-for database in auth_db catalog_db inventory_db orders_db recommendations_db; do
+for database in auth_db catalog_db inventory_db orders_db recommendations_db telegram_db; do
   runuser -u postgres -- pg_dump -Fc "$database" > "$target/$database.dump"
 done
 cp -a /etc/stoq "$target/environment"

@@ -454,8 +454,16 @@ export class OrdersService {
     return { now, start };
   }
 
-  async getPeriodStatistics(days = 14) {
-    const { now, start } = this.period(days);
+  async getPeriodStatistics(days = 14, businessDate?: string) {
+    let { now, start } = this.period(days);
+    if (businessDate !== undefined) {
+      const parsed = typeof businessDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(businessDate) ? new Date(`${businessDate}T00:00:00Z`) : new Date(NaN);
+      const today = new Date(now.getTime() + 3 * 3600000).toISOString().slice(0, 10);
+      if (days !== 1 || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== businessDate || businessDate > today)
+        throw new BadRequestException('Некорректная дата сводки');
+      start = new Date(`${businessDate}T00:00:00+03:00`);
+      now = new Date(Math.min(now.getTime(), start.getTime() + 86400000 - 1));
+    }
     const orders = await this.prisma.order.findMany({
       where: { restaurantId: restaurantId(), date: { gte: start, lte: now } },
       select: { date: true, status: true, items: { select: { dishId: true, quantity: true, price: true } } },

@@ -1,0 +1,28 @@
+{
+  "name": "stoq-telegram-service",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start:prod": "node dist/src/main.js",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "migrate": "node scripts/migrate.cjs",
+    "test:persistence": "npm run build && node scripts/test-persistence.cjs"
+  },
+  "dependencies": {
+    "@golevelup/nestjs-rabbitmq": "^9.1.0",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "amqplib": "^2.2.0",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.15.5",
+    "typescript": "^5.7.3"
+  }
+}

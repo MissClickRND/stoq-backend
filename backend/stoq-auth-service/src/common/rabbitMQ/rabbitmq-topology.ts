@@ -3,6 +3,9 @@ export const EXCHANGES = { COMMANDS: "app.commands" } as const;
 export const QUEUES = { AUTH_COMMANDS: "auth.commands" } as const;
 
 export const ROUTING_KEYS = {
+  AUTH_TELEGRAM_LOGIN: 'command.auth.telegram_login',
+  AUTH_TELEGRAM_VERIFY: 'command.auth.telegram_verify',
+  AUTH_TELEGRAM_LOGOUT: 'command.auth.telegram_logout',
   AUTH_APPEND_ACTIVITY: "command.auth.append_activity",
   AUTH_GET_ACTIVITY: "command.auth.get_activity",
   AUTH_ADMIN_STATISTICS: 'command.auth.admin_statistics',
