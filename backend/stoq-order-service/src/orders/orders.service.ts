@@ -27,6 +27,8 @@ interface ResolvedOrderItem extends OrderItemDto {
   };
 }
 
+export interface OrderCreator { id: number | null; name: string; role: string | null; source: 'EMPLOYEE' | 'GUEST' | 'SYSTEM' }
+
 interface InventoryItem {
   productId: number;
   quantity: number;
@@ -36,7 +38,7 @@ interface InventoryItem {
 export class OrdersService {
   private readonly creationQueues = new Map<number, Promise<void>>();
 
-  async create(dto: CreateOrderDto = {}) {
+  async create(dto: CreateOrderDto = {}, creator?: OrderCreator) {
     const tenant = restaurantId();
     const previous = this.creationQueues.get(tenant) ?? Promise.resolve();
     let release!: () => void;
@@ -44,7 +46,7 @@ export class OrdersService {
     this.creationQueues.set(tenant, current);
     await previous;
     try {
-      return await this.createInOrder(dto);
+      return await this.createInOrder(dto, creator);
     } finally {
       release();
       if (this.creationQueues.get(tenant) === current) this.creationQueues.delete(tenant);
@@ -262,7 +264,7 @@ export class OrdersService {
     }
   }
 
-  private async createInOrder(dto: CreateOrderDto) {
+  private async createInOrder(dto: CreateOrderDto, creator?: OrderCreator) {
     const date = dto.date === undefined ? new Date() : new Date(dto.date);
     const type = dto.type ?? 'dine-in';
     const guests = dto.guests ?? 1;
@@ -304,7 +306,9 @@ export class OrdersService {
 
     let order = this.toResponse(
       await this.prisma.order.create({
-        data: { ...data, restaurantId: restaurantId() },
+        data: { ...data, restaurantId: restaurantId(),
+          createdById: creator?.id ?? null, createdByName: creator?.name ?? null,
+          createdByRole: creator?.role ?? null, createdBySource: creator?.source ?? null },
         include: {
           items: true,
         },
@@ -395,6 +399,7 @@ export class OrdersService {
           .toNumber();
     return {
       ...order,
+      createdBy: order.createdBySource ? { id: order.createdById ?? null, name: order.createdByName, role: order.createdByRole ?? null, source: order.createdBySource } : null,
       items,
       totalPrice,
       date: new Date(order.date).toISOString(),

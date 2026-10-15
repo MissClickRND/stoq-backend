@@ -59,3 +59,20 @@ model Invitation {
 
   @@index([restaurantId, createdAt])
 }
+
+model ActivityLog {
+  id String @id
+  restaurantId Int
+  authorId Int?
+  authorName String
+  authorRole String
+  action String
+  category String
+  title String
+  description String
+  object String?
+  detail String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([restaurantId, createdAt, id])
+}

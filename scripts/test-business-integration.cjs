@@ -25,6 +25,7 @@ async function main() {
       ['stoq-catalog-service', '20261013100000_dish_category'],
       ['stoq-order-service', '20261013100000_order_metadata'],
       ['stoq-order-service', '20261013120000_order_item_prices'],
+      ['stoq-order-service', '20261015183000_order_creator'],
     ]) await pool.query(fs.readFileSync(path.join(servicePath(name), 'prisma/migrations', migration, 'migration.sql'), 'utf8'));
     const legacy = (await pool.query('SELECT supplier, total_price FROM supply.supplies')).rows[0];
     assert.deepEqual(legacy, { supplier: null, total_price: null });
@@ -53,6 +54,9 @@ async function main() {
     const { AppModule } = load(name, 'dist/app.module.js');
     let builder = Test.createTestingModule({ imports: [AppModule] });
     if (name === 'stoq-gate') {
+      // This suite does not run auth; dedicated activity tests exercise its real audit store.
+      const { AuditService } = load(name, 'dist/audit/audit.service.js');
+      builder = builder.overrideProvider(AuditService).useValue({ record: async () => undefined });
       // This suite isolates business contracts; test-auth-integration.cjs covers real authentication.
       const { AuthService } = load(name, 'dist/auth/auth.service.js');
       builder = builder.overrideProvider(AuthService).useValue({ verifyAccess: async () => ({

@@ -1,3 +1,6 @@
+import { AuditController } from "./audit/audit.controller";
+import { AuditService } from "./audit/audit.service";
+import { AuditInterceptor } from "./audit/audit.interceptor";
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { RestaurantInterceptor } from './common/tenant/restaurant.interceptor';
 import { Module } from '@nestjs/common';
@@ -31,6 +34,7 @@ import { MenuController } from './controllers/catalog/dishes/menu.controller';
     AiModule,
   ],
   controllers: [
+    AuditController,
     MenuController,
     ProductController,
     TestController,
@@ -45,6 +49,7 @@ import { MenuController } from './controllers/catalog/dishes/menu.controller';
     RecommendationsController,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: RestaurantInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }, AuditService,
     DemoRestaurantService,
     RecommendationsWsGateway,
     RecommendationEventsListener,

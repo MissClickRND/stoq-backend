@@ -1,3 +1,5 @@
+import { AuditService } from "./audit.service";
+import { AuditRPCController } from "./audit-rpc.controller";
 import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -11,6 +13,6 @@ import { AuthRPCController } from './auth-rpc.controller';
 @Module({
   imports: [PassportModule, JwtModule.register({}), CommandBusModule],
   controllers: [AuthController],
-  providers: [AuthService, JwtAccessStrategy, JwtRefreshStrategy, AuthRPCController],
+  providers: [AuditService, AuditRPCController, AuthService, JwtAccessStrategy, JwtRefreshStrategy, AuthRPCController],
 })
 export class AuthModule {}

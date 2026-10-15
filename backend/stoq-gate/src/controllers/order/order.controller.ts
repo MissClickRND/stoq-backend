@@ -9,6 +9,7 @@ import {
   Delete,
   Post,
   Patch,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -64,8 +65,11 @@ export class OrderController {
   @ApiConflictResponse({
     description: 'В запросе есть повторяющиеся блюда',
   })
-  async create(@Body() dto: CreateOrderDto) {
-    const payload = { dto: dto };
+  async create(@Body() dto: CreateOrderDto, @Req() req?: { user?: { id: number; fullName: string; role: string } }) {
+    const user = req?.user;
+    const payload = { dto, creator: user
+      ? { id: user.id, name: user.fullName, role: user.role, source: 'EMPLOYEE' }
+      : { id: null, name: 'Гость', role: null, source: 'GUEST' } };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_ORDER,

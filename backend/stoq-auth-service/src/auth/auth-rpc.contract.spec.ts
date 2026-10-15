@@ -5,6 +5,7 @@ import { RABBIT_HANDLER } from "@golevelup/nestjs-rabbitmq";
 import { hash } from "bcrypt";
 import { AuthService } from "./auth.service";
 import { AuthRPCController } from "./auth-rpc.controller";
+import { AuditRPCController } from './audit-rpc.controller';
 import { PrismaService } from "../prisma/prisma.service";
 import { ROUTING_KEYS } from "../common/rabbitMQ/rabbitmq-topology";
 
@@ -52,10 +53,8 @@ describe("Auth RPC sessions and permissions", () => {
   });
 
   it("binds every auth command to the same dedicated durable queue", () => {
-    const handlers = Object.getOwnPropertyNames(AuthRPCController.prototype)
-      .map((key) =>
-        Reflect.getMetadata(RABBIT_HANDLER, AuthRPCController.prototype[key]),
-      )
+    const handlers = [AuthRPCController, AuditRPCController].flatMap(controller =>
+      Object.getOwnPropertyNames(controller.prototype).map(key => Reflect.getMetadata(RABBIT_HANDLER, controller.prototype[key])))
       .filter(Boolean);
     expect(handlers).toHaveLength(Object.keys(ROUTING_KEYS).length);
     expect(handlers.map((handler) => handler.routingKey).sort()).toEqual(

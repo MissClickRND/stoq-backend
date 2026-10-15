@@ -73,6 +73,10 @@ export class OrderItemResponseDto {
   @ApiProperty({ type: Number, nullable: true }) totalPrice!: number | null;
 }
 export class OrderResponseDto {
+  @ApiProperty({ type: 'object', nullable: true, properties: {
+    id: { type: 'integer', nullable: true }, name: { type: 'string' },
+    role: { type: 'string', nullable: true }, source: { type: 'string', enum: ['EMPLOYEE', 'GUEST', 'SYSTEM'] },
+  } }) createdBy!: { id: number | null; name: string; role: string | null; source: string } | null;
   @ApiProperty() id!: number;
   @ApiProperty({ type: Number, nullable: true }) totalPrice!: number | null;
   @ApiProperty({ format: 'date-time' }) date!: string;

@@ -1,7 +1,7 @@
 import { RabbitRPC } from '@golevelup/nestjs-rabbitmq';
 import { Injectable } from '@nestjs/common';
 import { executeRpc } from 'src/common/utils/rpc-handler';
-import { OrdersService } from './orders.service';
+import { OrdersService, type OrderCreator } from './orders.service';
 import {
   EXCHANGES,
   ROUTING_KEYS,
@@ -29,8 +29,8 @@ export class OrdersRPCController {
     routingKey: ROUTING_KEYS.CREATE_ORDER,
     queue: QUEUES.ORDERS_COMMANDS,
   })
-  create(payload: { dto: CreateOrderDto }) {
-    return executeRpc(() => this.ordersService.create(payload.dto));
+  create(payload: { dto: CreateOrderDto; creator?: OrderCreator }) {
+    return executeRpc(() => this.ordersService.create(payload.dto, payload.creator));
   }
 
   @RabbitRPC({

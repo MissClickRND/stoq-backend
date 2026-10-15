@@ -17,6 +17,8 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  AUTH_APPEND_ACTIVITY: "command.auth.append_activity",
+  AUTH_GET_ACTIVITY: "command.auth.get_activity",
   AUTH_ADMIN_STATISTICS: 'command.auth.admin_statistics',
   AUTH_ADMIN_USERS: 'command.auth.admin_users',
   AUTH_ADMIN_RESTAURANT: 'command.auth.admin_restaurant',

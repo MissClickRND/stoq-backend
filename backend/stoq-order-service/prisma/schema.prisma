@@ -18,6 +18,10 @@ enum OrderStatus {
 
 model Order {
   restaurantId Int?
+  createdById Int?
+  createdByName String?
+  createdByRole String?
+  createdBySource String?
 
   id          Int         @id @default(autoincrement())
   status      OrderStatus @default(created)
