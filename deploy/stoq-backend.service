@@ -1,0 +1,29 @@
+[Unit]
+Description=STOQ %i
+After=network-online.target postgresql.service rabbitmq-server.service redis-server.service
+Wants=network-online.target
+Requires=postgresql.service rabbitmq-server.service redis-server.service
+
+[Service]
+Type=simple
+User=stoq-backend
+Group=stoq-backend
+WorkingDirectory=/opt/stoq-backend/current/backend/%i
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=384
+EnvironmentFile=/etc/stoq/%i.env
+ExecStart=/usr/local/bin/node dist/main.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

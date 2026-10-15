@@ -13,7 +13,7 @@
     "test:ai": "npm --prefix backend/stoq-ai-service test && npm --prefix backend/stoq-gate test -- --runInBand --testPathPatterns=ai.controller",
     "test:ai-integration": "npm run build:ai && node scripts/test-ai-integration.cjs",
     "build:business": "npm --prefix backend/stoq-inventory-service run build && npm --prefix backend/stoq-catalog-service run build && npm --prefix backend/stoq-order-service run build && npm --prefix backend/stoq-recommendation-service run build && npm --prefix backend/stoq-gate run build",
-    "test:business": "npm --prefix backend/stoq-inventory-service test -- --runInBand --testPathPatterns=pricing.contract && npm --prefix backend/stoq-catalog-service test -- --runInBand --config jest.contract.json && npm --prefix backend/stoq-order-service test -- --runInBand --testPathPatterns=metadata.contract && npm --prefix backend/stoq-gate test -- --runInBand",
+    "test:business": "npm --prefix backend/stoq-inventory-service test -- --runInBand --testPathPatterns=contract && npm --prefix backend/stoq-catalog-service test -- --runInBand --config jest.contract.json && npm --prefix backend/stoq-order-service test -- --runInBand --testPathPatterns=contract && npm --prefix backend/stoq-recommendation-service test -- --runInBand --testPathPattern=dependency-graph && npm --prefix backend/stoq-gate test -- --runInBand",
     "test:business-integration": "npm run build:business && node scripts/test-business-integration.cjs"
   }
 }

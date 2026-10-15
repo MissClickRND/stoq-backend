@@ -1,0 +1,8 @@
+[Unit]
+Description=Backup STOQ databases and service configuration
+After=postgresql.service rabbitmq-server.service redis-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/stoq-backup
+UMask=0077

@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import sharp from 'sharp';
@@ -7,10 +7,14 @@ import { PDFDocument } from 'pdf-lib';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AppModule } from '../src/app.module';
+import { CommandBusModule } from '../src/common/rabbitMQ/command-bus.module';
 import { SETTINGS, validateEnvironment } from '../src/config/environment';
 import { configureApp } from '../src/configure-app';
 import { OPENROUTER_CLIENT } from '../src/upd/openrouter-extractor';
 import { UpdService } from '../src/upd/upd.service';
+
+@Module({})
+class HttpOnlyCommandBusModule {}
 
 describe('Swagger and HTTP file upload', () => {
   let app: INestApplication;
@@ -23,6 +27,7 @@ describe('Swagger and HTTP file upload', () => {
   const success = { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ documentType: 'upd', sellerName: recognized.sellerName, items: products.map(({ quantity, ...rest }) => ({ ...rest, quantityColumn3Text: String(quantity) })) }) } }] };
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideModule(CommandBusModule).useModule(HttpOnlyCommandBusModule)
       .overrideProvider(SETTINGS).useValue(settings)
       .overrideProvider(OPENROUTER_CLIENT).useValue({ chat: { completions: { create } } })
       .compile();

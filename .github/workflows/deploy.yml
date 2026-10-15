@@ -1,0 +1,79 @@
+name: Backend CI and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.20.0'
+      - name: Build all services
+        run: bash deploy/build.sh
+      - name: Verify service contracts
+        run: |
+          npm run test:auth
+          npm run test:ai
+          npm run test:business
+      - name: Validate migrations against empty databases
+        env:
+          PGPASSWORD: ci-only-password
+        run: |
+          set -euo pipefail
+          for service in auth catalog inventory order recommendation; do
+            database="ci_$service"
+            psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $database"
+            directory="backend/stoq-$service-service"
+            config=prisma.config.ts
+            test -f "$directory/$config" || config=prisma7.config.ts
+            (cd "$directory"; DATABASE_URL="postgresql://postgres:$PGPASSWORD@127.0.0.1:5432/$database" ./node_modules/.bin/prisma migrate deploy --config "$config")
+          done
+      - name: Deploy backend
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_SSH_KEY"
+          key="$RUNNER_TEMP/stoq-backend-key"
+          trap 'rm -f "$key"' EXIT
+          umask 077
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$key"
+          release="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/$release.tar.gz"
+          options=(-i "$key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" -o ConnectTimeout=15)
+          scp "${options[@]}" "$RUNNER_TEMP/$release.tar.gz" "$DEPLOY_USER@$DEPLOY_HOST:/opt/stoq-backend/incoming/$release.tar.gz"
+          ssh "${options[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "/usr/local/bin/stoq-backend-release $release"
+          actual=$(curl -fsS --retry 3 "https://lyaguh.site/backend-version.txt")
+          test "$actual" = "$GITHUB_SHA"

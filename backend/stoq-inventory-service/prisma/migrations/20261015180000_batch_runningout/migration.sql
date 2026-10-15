@@ -1,0 +1,1 @@
+ALTER TYPE "inventory"."BatchStatus" ADD VALUE IF NOT EXISTS 'RUNNINGOUT';
