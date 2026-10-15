@@ -68,6 +68,8 @@ export class Runtime implements OnModuleInit, OnApplicationShutdown {
     this.lock.on("error", () => {
       this.stopping = true;
       this.logger.error("Telegram worker lock connection lost");
+      // Restart under the local supervisor; a lost advisory lock cannot be reused.
+      process.kill(process.pid, "SIGTERM");
     });
     const result = await this.lock.query(
       "SELECT pg_try_advisory_lock(3007002) AS acquired",

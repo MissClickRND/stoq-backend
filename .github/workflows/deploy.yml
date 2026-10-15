@@ -45,6 +45,7 @@ jobs:
           npm run test:ai
           npm run test:business
           npm run test:telegram
+          node --test deploy/local-services-supervisor.test.cjs
       - name: Validate migrations against empty databases
         env:
           PGPASSWORD: ci-only-password

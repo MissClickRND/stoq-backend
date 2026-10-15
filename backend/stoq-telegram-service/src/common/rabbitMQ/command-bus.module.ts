@@ -12,7 +12,7 @@ import { CommandBusService } from "./command-bus.service";
           "RABBITMQ_URL",
           "amqp://admin:admin@localhost:5672",
         ),
-        connectionInitOptions: { wait: true },
+        connectionInitOptions: { wait: true, timeout: 30000 },
         enableControllerDiscovery: true,
         exchanges: [
           {
