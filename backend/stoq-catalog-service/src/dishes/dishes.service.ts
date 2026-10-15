@@ -4,6 +4,7 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -17,6 +18,19 @@ export class DishesService {
     private readonly prisma: PrismaService,
     private readonly commandBusService: CommandBusService,
   ) {}
+
+  async resetBusinessData(confirmation: string) {
+    if (confirmation !== 'RESET' || (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_TOOLS !== 'true')) {
+      throw new ForbiddenException('Сброс тестовых данных отключён');
+    }
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.recipeItem.deleteMany({});
+      const dishes = await tx.dish.deleteMany({});
+      const products = await tx.product.deleteMany({});
+      return { dishes: dishes.count, products: products.count };
+    });
+    return result;
+  }
 
   private handleRpcResponse<T>(response: any): T {
     if (!response.success) {

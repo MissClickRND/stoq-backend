@@ -13,6 +13,11 @@ import { CreateDishDto } from "./dto/create-dish.dto";
 export class DishesRPCController {
   constructor(private readonly dishesService: DishesService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.RESET_CATALOG_DATA, queue: QUEUES.CATALOG_COMMANDS })
+  reset(payload: { confirmation: string }) {
+    return executeRpc(() => this.dishesService.resetBusinessData(payload.confirmation));
+  }
+
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.CREATE_DISHES,

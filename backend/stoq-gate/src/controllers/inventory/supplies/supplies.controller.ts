@@ -55,6 +55,16 @@ export class SupplyController {
     return this.handleRpcResponse(response);
   }
 
+  @Put(':id')
+  @ApiOperation({ summary: 'Изменить поставку или принять ожидаемую поставку' })
+  @ApiBody({ type: CreateSupplyDto })
+  @ApiOkResponse({ type: SupplyResponseDto })
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateSupplyDto) {
+    return this.handleRpcResponse(await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS, ROUTING_KEYS.UPDATE_SUPPLY, { id, dto },
+    ));
+  }
+
   @Get()
   @ApiOperation({ summary: 'Получить список всех поставок' })
   @ApiQuery({

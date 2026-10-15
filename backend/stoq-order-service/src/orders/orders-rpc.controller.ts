@@ -14,6 +14,11 @@ import { CreateOrderDto } from './dto/create-order.dto';
 export class OrdersRPCController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.RESET_ORDER_DATA, queue: QUEUES.ORDERS_COMMANDS })
+  reset(payload: { confirmation: string }) {
+    return executeRpc(() => this.ordersService.resetBusinessData(payload.confirmation));
+  }
+
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.CREATE_ORDER,

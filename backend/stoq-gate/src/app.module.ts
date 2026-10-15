@@ -15,6 +15,7 @@ import { RecommendationsWsGateway } from './controllers/recommendation/recommend
 import { RecommendationsController } from './controllers/recommendation/recommendation/recommendation.controller';
 import { InventoryEventsListener } from './controllers/inventory/inventory/inventory-events.listener';
 import { InventoryWsGateway } from './controllers/inventory/inventory/inventory.ws.gateway';
+import { TestController } from './controllers/test/test.controller';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { InventoryWsGateway } from './controllers/inventory/inventory/inventory.
   ],
   controllers: [
     ProductController,
+    TestController,
     // RecipesController,
     DishesController,
     SupplyController,

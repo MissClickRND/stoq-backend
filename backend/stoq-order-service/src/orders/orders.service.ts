@@ -5,6 +5,7 @@ import {
   NotFoundException,
   HttpException,
   ServiceUnavailableException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,6 +23,17 @@ export class OrdersService {
     private readonly commandBusService: CommandBusService,
     private readonly eventPublisher: OrderEventPublisher,
   ) {}
+
+  async resetBusinessData(confirmation: string) {
+    if (confirmation !== 'RESET' || (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_TOOLS !== 'true')) {
+      throw new ForbiddenException('Сброс тестовых данных отключён');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.orderItem.deleteMany({});
+      const orders = await tx.order.deleteMany({});
+      return { orders: orders.count };
+    });
+  }
 
   private async priceItems(items: OrderItemDto[]) {
     return Promise.all(

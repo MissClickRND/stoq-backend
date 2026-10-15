@@ -16,6 +16,10 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  UPDATE_SUPPLY: "command.inventory.update_supply",
+  RESET_INVENTORY_DATA: "command.inventory.reset_business_data",
+  RESET_CATALOG_DATA: "command.catalog.reset_business_data",
+  RESET_ORDER_DATA: "command.order.reset_business_data",
   CHANGE_ORDER_STATUS: "command.order.change_status",
 
   AI_RECOGNIZE_UPD: "command.ai.recognize_u-pd",

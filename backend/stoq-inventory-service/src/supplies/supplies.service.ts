@@ -4,6 +4,7 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CreateSupplyDto } from "./dto/requests/create-supply.dto";
@@ -23,6 +24,23 @@ export class SupplyService {
     private prisma: PrismaService,
     private readonly commandBusService: CommandBusService,
   ) {}
+
+  async resetBusinessData(confirmation: string) {
+    if (confirmation !== 'RESET' || (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_TOOLS !== 'true')) {
+      throw new ForbiddenException('Сброс тестовых данных отключён');
+    }
+    const result = await this.prisma.$transaction(async (tx) => {
+      const movements = await tx.stockMovement.deleteMany({});
+      await tx.idempotencyKey.deleteMany({});
+      await tx.batchBalance.deleteMany({});
+      const batches = await tx.batch.deleteMany({});
+      await tx.supplyItem.deleteMany({});
+      const supplies = await tx.supply.deleteMany({});
+      return { supplies: supplies.count, batches: batches.count, movements: movements.count };
+    });
+    await this.publishStockChanged('BUSINESS_RESET');
+    return result;
+  }
 
   async createSupply(dto: CreateSupplyDto) {
     if (
@@ -78,7 +96,7 @@ export class SupplyService {
             supplier: dto.supplier.trim(),
             totalPrice,
             receivedAt: dto.receivedAt ?? new Date(),
-            status: "RECEIVED",
+            status: dto.status ?? "RECEIVED",
           },
         });
 
@@ -86,7 +104,7 @@ export class SupplyService {
         for (const item of dto.items) {
           const expiresAt = new Date(item.expiresAt);
 
-          const batch = await tx.batch.create({
+          const batch = (dto.status ?? "RECEIVED") === "RECEIVED" ? await tx.batch.create({
             data: {
               supplyId: supply.id,
               productId: item.productId,
@@ -97,7 +115,7 @@ export class SupplyService {
               expiresAt,
               status: "ACTIVE",
             },
-          });
+          }) : null;
 
           items.push(
             await tx.supplyItem.create({
@@ -111,7 +129,7 @@ export class SupplyService {
             }),
           );
 
-          await tx.batchBalance.create({
+          if (batch) await tx.batchBalance.create({
             data: {
               batchId: batch.id,
               availableQuantity: item.quantity,
@@ -147,6 +165,89 @@ export class SupplyService {
         payload || reason,
       );
     } catch (err) {}
+  }
+
+  async updateSupply(id: number, dto: CreateSupplyDto) {
+    if (!Number.isSafeInteger(id) || id < 1 || !dto.supplyNumber?.trim() || !dto.supplier?.trim() ||
+      !dto.items?.length || dto.items.some((item) => !Number.isSafeInteger(item.productId) || item.productId < 1 ||
+        !Number.isFinite(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.totalPrice) || item.totalPrice < 0 ||
+        item.totalPrice > 1e12 || Math.abs(item.totalPrice * 100 - Math.round(item.totalPrice * 100)) > 1e-6 ||
+        !Number.isFinite(new Date(item.expiresAt).getTime())) ||
+      (dto.status !== undefined && !['RECEIVED', 'CANCELLED', 'IN_TRANSIT'].includes(dto.status))) {
+      throw new BadRequestException('Проверьте номер, поставщика, статус и позиции поставки');
+    }
+    const response: any = await this.commandBusService.sendCommand(EXCHANGES.COMMANDS, ROUTING_KEYS.GET_PRODUCT,
+      { ids: [...new Set(dto.items.map((item) => item.productId))] });
+    if (!response?.success) throw new HttpException('Не удалось проверить продукты поставки', response?.error?.status ?? 503);
+    const productsById = buildProductsByIdMap(response.data);
+    if (dto.items.some((item) => !productsById.has(item.productId))) throw new BadRequestException('Один или несколько продуктов не существуют');
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const previous = await tx.supply.findUnique({ where: { id }, include: { items: { orderBy: { id: 'asc' } } } });
+        if (!previous) throw new NotFoundException('Поставка не найдена');
+        const status = dto.status ?? previous.status;
+        const changedItems = previous.items.length !== dto.items.length || previous.items.some((item, index) => {
+          const next = dto.items[index];
+          return !next || item.productId !== next.productId || Number(item.quantity) !== next.quantity ||
+            item.totalPrice == null || Number(item.totalPrice) !== next.totalPrice ||
+            new Date(item.expiresAt).getTime() !== new Date(next.expiresAt).getTime();
+        });
+        const changeStock = previous.status !== status || changedItems;
+        let reusableBatchIds: number[] | undefined;
+        if (previous.status === 'RECEIVED' && changeStock) {
+          const batches = await tx.batch.findMany({ where: { supplyId: id }, include: { balance: true }, orderBy: { id: 'asc' } });
+          const movements = await tx.stockMovement.count({ where: { batchId: { in: batches.map((batch) => batch.id) } } });
+          if (movements || batches.some((batch) => !batch.balance || Number(batch.balance.reservedQuantity) !== 0 ||
+            Number(batch.balance.availableQuantity) !== Number(batch.initialQuantity))) {
+            throw new ConflictException('Партии уже использованы или зарезервированы. Можно изменить реквизиты, но не состав и статус принятой поставки');
+          }
+          if (status === 'RECEIVED' && batches.length === dto.items.length && batches.every((batch, index) => batch.productId === dto.items[index].productId)) {
+            reusableBatchIds = batches.map((batch) => batch.id);
+          } else {
+            await tx.batchBalance.deleteMany({ where: { batchId: { in: batches.map((batch) => batch.id) } } });
+            await tx.batch.deleteMany({ where: { supplyId: id } });
+          }
+        }
+        const supply = await tx.supply.update({ where: { id }, data: {
+          supplyNumber: dto.supplyNumber.trim(), supplier: dto.supplier.trim(), status,
+          receivedAt: dto.receivedAt ?? previous.receivedAt,
+          totalPrice: dto.items.reduce((sum, item) => sum.plus(item.totalPrice), new Prisma.Decimal(0)),
+        } });
+        let items = previous.items;
+        if (changedItems) {
+          await tx.supplyItem.deleteMany({ where: { supplyId: id } });
+          items = [];
+          for (const item of dto.items) items.push(await tx.supplyItem.create({ data: {
+            supplyId: id, productId: item.productId, quantity: item.quantity, totalPrice: item.totalPrice, expiresAt: new Date(item.expiresAt),
+          } }));
+        }
+        if (status === 'RECEIVED' && (previous.status !== 'RECEIVED' || changedItems)) {
+          for (const [index, item] of dto.items.entries()) {
+            if (reusableBatchIds) {
+              const batchId = reusableBatchIds[index];
+              await tx.batch.update({ where: { id: batchId }, data: { initialQuantity: item.quantity,
+                price: new Prisma.Decimal(item.totalPrice).div(item.quantity).toDecimalPlaces(6), expiresAt: new Date(item.expiresAt), status: 'ACTIVE' } });
+              await tx.batchBalance.update({ where: { batchId }, data: { availableQuantity: item.quantity, updatedAt: new Date() } });
+              continue;
+            }
+            const batch = await tx.batch.create({ data: { supplyId: id, productId: item.productId,
+              initialQuantity: item.quantity, price: new Prisma.Decimal(item.totalPrice).div(item.quantity).toDecimalPlaces(6),
+              expiresAt: new Date(item.expiresAt), status: 'ACTIVE' } });
+            await tx.batchBalance.create({ data: { batchId: batch.id, availableQuantity: item.quantity, reservedQuantity: 0 } });
+          }
+        }
+        return mapSupplyWithItemsToDto({ ...supply, items }, productsById);
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      await this.publishStockChanged('SUPPLY_UPDATED', { supplyId: id });
+      return result;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') throw new ConflictException('Поставка с таким номером уже существует');
+        if (error.code === 'P2034') throw new ConflictException('Остатки изменились во время сохранения. Повторите действие');
+      }
+      throw error;
+    }
   }
 
   async findAll(search?: string): Promise<SupplyWithItemsResponseDto[]> {

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Param,
   ParseIntPipe,
@@ -35,6 +36,12 @@ export class SupplyController {
   })
   async create(@Body() dto: CreateSupplyDto) {
     return this.supplyService.createSupply(dto);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Изменить поставку' })
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateSupplyDto) {
+    return this.supplyService.updateSupply(id, dto);
   }
 
   @Get()

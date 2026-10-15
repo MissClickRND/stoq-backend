@@ -238,6 +238,28 @@ export class InventoryService {
     return result;
   }
 
+  async writeOffBatch(batchId: number) {
+    if (!Number.isSafeInteger(batchId) || batchId < 1) throw new BadRequestException('Некорректный ID партии');
+    const result = await this.prisma.$transaction(async (tx) => {
+      const batch = await tx.batch.findUnique({ where: { id: batchId }, include: { balance: true } });
+      if (!batch?.balance) throw new NotFoundException('Партия не найдена');
+      if (Number(batch.balance.reservedQuantity) > 0) throw new ConflictException('Партия зарезервирована. Завершите связанные заказы перед списанием');
+      const quantity = batch.balance.availableQuantity;
+      if (quantity.isZero()) return { batchId, availableQuantity: 0, writtenOffQuantity: 0 };
+      const updated = await tx.batchBalance.updateMany({
+        where: { batchId, availableQuantity: quantity, reservedQuantity: 0 },
+        data: { availableQuantity: 0, updatedAt: new Date() },
+      });
+      if (updated.count !== 1) throw new ConflictException('Остаток изменился. Обновите страницу и повторите списание');
+      if (batch.status !== BatchStatus.EXPIRED) await tx.batch.update({ where: { id: batchId }, data: { status: BatchStatus.DEPLETED } });
+      await tx.stockMovement.create({ data: { orderId: 'manual-write-off', batchId, productId: batch.productId,
+        quantity: quantity.neg(), type: 'WRITE_OFF' } });
+      return { batchId, availableQuantity: 0, writtenOffQuantity: Number(quantity) };
+    });
+    if (result.writtenOffQuantity > 0) await this.publish('MANUAL_WRITE_OFF');
+    return result;
+  }
+
   async checkStockAvailability(
     items: DeductStockItemDto[],
     tx?: Prisma.TransactionClient,

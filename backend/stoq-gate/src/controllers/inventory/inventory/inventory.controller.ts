@@ -143,6 +143,15 @@ export class InventoryController {
     return this.handleRpcResponse(response);
   }
 
+  @Post(':batchId/write-off')
+  @ApiOperation({ summary: 'Списать доступный остаток складской партии' })
+  async writeOff(@Param('batchId', ParseIntPipe) batchId: number) {
+    return this.handleRpcResponse(await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS, ROUTING_KEYS.UPDATE_QUANTITY_INVENTORY,
+      { dto: { items: [{ batchId, quantity: 0 }] }, operation: 'WRITE_OFF' },
+    ));
+  }
+
   @Put()
   @ApiOperation({ summary: 'Обновить количество продукта на складе' })
   @ApiBody({ type: UpdateQuantityDto })

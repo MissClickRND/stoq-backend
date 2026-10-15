@@ -49,7 +49,10 @@ export class InventoryRPCController {
     routingKey: ROUTING_KEYS.UPDATE_QUANTITY_INVENTORY,
     queue: QUEUES.INVENTORY_COMMANDS,
   })
-  updateQuantity(payload: { dto: UpdateQuantityDto }) {
+  updateQuantity(payload: { dto: UpdateQuantityDto; operation?: 'WRITE_OFF' }) {
+    if (payload.operation === 'WRITE_OFF') {
+      return executeRpc(() => this.inventoryService.writeOffBatch(payload.dto.items[0]?.batchId));
+    }
     return executeRpc(() => this.inventoryService.updateQuantity(payload.dto));
   }
 
