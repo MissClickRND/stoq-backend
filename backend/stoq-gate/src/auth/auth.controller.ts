@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Req,
@@ -27,6 +28,7 @@ import { ApproveUserDto } from './dto/approve-user.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 import { clearAuthCookies, setAuthCookies } from './auth.cookies';
 import { accessTokenFrom } from './access-token';
+import { CreateInvitationDto, SetUserBlockDto, SetUserRoleDto } from './dto/admin.dto';
 
 @ApiTags('auth')
 @Roles(Role.ADMIN)
@@ -137,6 +139,54 @@ export class AuthController {
     return this.auth.request(ROUTING_KEYS.AUTH_PENDING_USERS, {
       accessToken: accessTokenFrom(req.headers, req.cookies),
     });
+  }
+
+  @Get('admin/users')
+  @ApiOperation({ summary: 'Все сотрудники своего ресторана и их статусы' })
+  users(@Req() req: Request) {
+    return this.auth.request(ROUTING_KEYS.AUTH_ADMIN_USERS, { accessToken: accessTokenFrom(req.headers, req.cookies) });
+  }
+
+  @Get('admin/restaurant')
+  @ApiOperation({ summary: 'Информация о своём ресторане' })
+  restaurant(@Req() req: Request) {
+    return this.auth.request(ROUTING_KEYS.AUTH_ADMIN_RESTAURANT, { accessToken: accessTokenFrom(req.headers, req.cookies) });
+  }
+
+  @Patch('admin/users/:id/role')
+  @ApiOperation({ summary: 'Назначить роль сотруднику своего ресторана' })
+  setUserRole(@Req() req: Request, @Param('id', ParseIntPipe) id: number, @Body() dto: SetUserRoleDto) {
+    return this.auth.request(ROUTING_KEYS.AUTH_SET_USER_ROLE, { accessToken: accessTokenFrom(req.headers, req.cookies), id, dto });
+  }
+
+  @Patch('admin/users/:id/block')
+  @ApiOperation({ summary: 'Заблокировать или разблокировать сотрудника' })
+  setUserBlock(@Req() req: Request, @Param('id', ParseIntPipe) id: number, @Body() dto: SetUserBlockDto) {
+    return this.auth.request(ROUTING_KEYS.AUTH_SET_USER_BLOCK, { accessToken: accessTokenFrom(req.headers, req.cookies), id, dto });
+  }
+
+  @Get('admin/invitations')
+  @ApiOperation({ summary: 'Приглашения в свой ресторан' })
+  invitations(@Req() req: Request) {
+    return this.auth.request(ROUTING_KEYS.AUTH_LIST_INVITATIONS, { accessToken: accessTokenFrom(req.headers, req.cookies) });
+  }
+
+  @Post('admin/invitations')
+  @ApiOperation({ summary: 'Создать одноразовое приглашение сотрудника' })
+  createInvitation(@Req() req: Request, @Body() dto: CreateInvitationDto) {
+    return this.auth.request(ROUTING_KEYS.AUTH_CREATE_INVITATION, { accessToken: accessTokenFrom(req.headers, req.cookies), dto });
+  }
+
+  @Patch('admin/invitations/:id/revoke')
+  @ApiOperation({ summary: 'Отозвать приглашение своего ресторана' })
+  revokeInvitation(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
+    return this.auth.request(ROUTING_KEYS.AUTH_REVOKE_INVITATION, { accessToken: accessTokenFrom(req.headers, req.cookies), id });
+  }
+
+  @Delete('admin/invitations/:id')
+  @ApiOperation({ summary: 'Удалить приглашение своего ресторана' })
+  deleteInvitation(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
+    return this.auth.request(ROUTING_KEYS.AUTH_DELETE_INVITATION, { accessToken: accessTokenFrom(req.headers, req.cookies), id });
   }
 
   @Patch('admin/users/:id/approve')

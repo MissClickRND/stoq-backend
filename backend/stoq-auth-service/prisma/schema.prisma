@@ -24,6 +24,7 @@ model User {
   passwordHash       String
   hashedRefreshToken String?
   tokenVersion       Int        @default(0)
+  blocked            Boolean    @default(false)
   role               Role
 
   createdAt          DateTime   @default(now())
@@ -36,9 +37,25 @@ model Restaurant {
   address   String
   phone     String?
   email     String?
+  isDemo    Boolean  @default(false)
+  demoReady Boolean  @default(false)
 
   users     User[]
+  invitations Invitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Invitation {
+  id           String     @id @default(uuid())
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  role         Role
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  usedAt       DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, createdAt])
 }

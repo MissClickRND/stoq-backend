@@ -18,6 +18,8 @@ import { RecommendationsController } from './controllers/recommendation/recommen
 import { InventoryEventsListener } from './controllers/inventory/inventory/inventory-events.listener';
 import { InventoryWsGateway } from './controllers/inventory/inventory/inventory.ws.gateway';
 import { TestController } from './controllers/test/test.controller';
+import { DemoRestaurantController } from './controllers/test/demo-restaurant.controller';
+import { DemoRestaurantService } from './controllers/test/demo-restaurant.service';
 import { AuthModule } from './auth/auth.module';
 import { MenuController } from './controllers/catalog/dishes/menu.controller';
 
@@ -32,6 +34,7 @@ import { MenuController } from './controllers/catalog/dishes/menu.controller';
     MenuController,
     ProductController,
     TestController,
+    DemoRestaurantController,
     // RecipesController,
     DishesController,
     SupplyController,
@@ -42,6 +45,7 @@ import { MenuController } from './controllers/catalog/dishes/menu.controller';
     RecommendationsController,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: RestaurantInterceptor },
+    DemoRestaurantService,
     RecommendationsWsGateway,
     RecommendationEventsListener,
     InventoryEventsListener,

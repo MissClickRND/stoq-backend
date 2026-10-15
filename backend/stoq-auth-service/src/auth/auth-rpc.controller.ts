@@ -16,6 +16,8 @@ import { RegisterRestaurantDto } from "./dto/register-restaurant.dto";
 import { LoginDto } from "./dto/login.dto";
 import { ApproveUserDto } from "./dto/approve-user.dto";
 import { UpdateRestaurantDto } from "./dto/update-restaurant.dto";
+import { CreateInvitationDto, SetUserBlockDto, SetUserRoleDto } from './dto/admin.dto';
+import { Role } from '@prisma/client';
 
 const rpc = (routingKey: string) =>
   RabbitRPC({
@@ -33,6 +35,71 @@ export class AuthRPCController {
   });
 
   constructor(private readonly auth: AuthService) {}
+
+  @rpc(ROUTING_KEYS.AUTH_ADMIN_USERS)
+  adminUsers(payload: { accessToken: string }) {
+    return executeRpc(async () => this.auth.getAdminUsers((await this.auth.verifyAccessToken(payload?.accessToken)).id));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_ADMIN_RESTAURANT)
+  adminRestaurant(payload: { accessToken: string }) {
+    return executeRpc(async () => this.auth.getAdminRestaurant((await this.auth.verifyAccessToken(payload?.accessToken)).id));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_SET_USER_ROLE)
+  setUserRole(payload: { accessToken: string; id: number; dto: SetUserRoleDto }) {
+    return executeRpc(async () => this.auth.setUserRole((await this.auth.verifyAccessToken(payload?.accessToken)).id, this.employeeId(payload.id), await this.dto(SetUserRoleDto, payload.dto)));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_SET_USER_BLOCK)
+  setUserBlock(payload: { accessToken: string; id: number; dto: SetUserBlockDto }) {
+    return executeRpc(async () => this.auth.setUserBlock((await this.auth.verifyAccessToken(payload?.accessToken)).id, this.employeeId(payload.id), await this.dto(SetUserBlockDto, payload.dto)));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_LIST_INVITATIONS)
+  invitations(payload: { accessToken: string }) {
+    return executeRpc(async () => this.auth.getInvitations((await this.auth.verifyAccessToken(payload?.accessToken)).id));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_CREATE_INVITATION)
+  createInvitation(payload: { accessToken: string; dto: CreateInvitationDto }) {
+    return executeRpc(async () => this.auth.createInvitation((await this.auth.verifyAccessToken(payload?.accessToken)).id, await this.dto(CreateInvitationDto, payload.dto)));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_REVOKE_INVITATION)
+  revokeInvitation(payload: { accessToken: string; id: string }) {
+    return executeRpc(async () => this.auth.revokeInvitation((await this.auth.verifyAccessToken(payload?.accessToken)).id, this.invitationId(payload.id)));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_DELETE_INVITATION)
+  deleteInvitation(payload: { accessToken: string; id: string }) {
+    return executeRpc(async () => this.auth.deleteInvitation((await this.auth.verifyAccessToken(payload?.accessToken)).id, this.invitationId(payload.id)));
+  }
+
+  private invitationId(id: string) {
+    if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new BadRequestException('Некорректный ID приглашения');
+    return id;
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_CREATE_DEMO_RESTAURANT)
+  createDemoRestaurant(payload: { accessToken: string }) {
+    return executeRpc(async () => this.auth.createDemoRestaurant((await this.auth.verifyAccessToken(payload?.accessToken)).id));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_LIST_DEMO_RESTAURANTS)
+  listDemoRestaurants() {
+    return executeRpc(() => this.auth.listDemoRestaurants());
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_COMPLETE_DEMO_RESTAURANT)
+  completeDemoRestaurant(payload: { accessToken: string; restaurantId: number }) {
+    return executeRpc(async () => this.auth.completeDemoRestaurant((await this.auth.verifyAccessToken(payload?.accessToken)).id, payload.restaurantId));
+  }
+
+  @rpc(ROUTING_KEYS.AUTH_DEMO_LOGIN)
+  demoLogin(payload: { restaurantId: number; role: Role }) {
+    return executeRpc(() => this.auth.demoLogin(payload?.restaurantId, payload?.role));
+  }
 
   @rpc(ROUTING_KEYS.AUTH_GET_RESTAURANTS)
   restaurants() {

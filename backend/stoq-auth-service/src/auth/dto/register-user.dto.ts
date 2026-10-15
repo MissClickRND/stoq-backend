@@ -3,6 +3,8 @@ import { Transform } from "class-transformer";
 import {
     IsEmail,
     IsInt,
+    IsOptional,
+    IsUUID,
     IsNotEmpty,
     IsString,
     MaxLength,
@@ -51,4 +53,9 @@ export class RegisterUserDto {
     @IsNotEmpty()
     @Min(1)
     restaurantId!: number;
+
+    @ApiProperty({ required: false, description: 'Одноразовое приглашение сотрудника' })
+    @IsOptional()
+    @IsUUID()
+    invitationId?: string;
 }

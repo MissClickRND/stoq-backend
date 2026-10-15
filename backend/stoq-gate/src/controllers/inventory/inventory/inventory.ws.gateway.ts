@@ -75,11 +75,12 @@ export class InventoryWsGateway {
     const requestId = this.getRequestId(payload);
 
     try {
+      if (payload == null) throw new Error('Ожидается объект запроса');
       const dto = this.validatePayload(GetStockRequestDto, payload);
       const response = await this.commandBusService.sendCommand(
         EXCHANGES.COMMANDS,
-        ROUTING_KEYS.GET_INVENTORY_STOCK,
-        { productIds: dto.productIds },
+        dto.productIds === undefined ? ROUTING_KEYS.GET_INVENTORY : ROUTING_KEYS.GET_INVENTORY_STOCK,
+        dto.productIds === undefined ? { search: undefined } : { productIds: dto.productIds },
       );
 
       const data = this.handleRpcResponse(response);

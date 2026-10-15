@@ -1,4 +1,4 @@
-import { ArrayUnique, IsArray, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { ArrayUnique, IsArray, IsInt, IsOptional, IsString, MaxLength, Min, ValidateIf } from 'class-validator';
 import { InventoryResponseDto, ProductResponseDto } from '../../../../common/dto/business-response.dto';
 
 export class WsSuccessResponseDto<T = any> {
@@ -17,11 +17,12 @@ export class GetStockRequestDto {
   @MaxLength(128)
   requestId?: string;
 
+  @ValidateIf((_object, value) => value !== undefined)
   @IsArray()
   @ArrayUnique()
   @IsInt({ each: true })
   @Min(1, { each: true })
-  productIds!: number[];
+  productIds?: number[];
 }
 
 export class GetExpiringSoonRequestDto {

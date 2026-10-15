@@ -24,15 +24,16 @@ export class UpdateRestaurantDto {
 
     @ApiPropertyOptional({ example: "+71234567890" })
     @IsOptional()
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() || null : value)
     @IsString()
     @MaxLength(30)
-    phone?: string;
+    phone?: string | null;
 
     @ApiPropertyOptional({ example: "restaurant@example.com" })
     @IsOptional()
     @Transform(({ value }) =>
-        typeof value === "string" ? value.toLowerCase().trim() : value,
+        typeof value === "string" ? value.toLowerCase().trim() || null : value,
     )
     @IsEmail()
-    email?: string;
+    email?: string | null;
 }

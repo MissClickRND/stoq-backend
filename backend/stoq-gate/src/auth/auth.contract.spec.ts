@@ -142,6 +142,12 @@ describe('Gateway authentication over RPC', () => {
     ['STOREKEEPER', '/statistics/dishes', 403],
     ['MANAGER', '/auth/admin/users/pending', 403],
     ['ADMIN', '/auth/admin/users/pending', 200],
+    ['ADMIN', '/auth/admin/users', 200],
+    ['MANAGER', '/auth/admin/users', 403],
+    ['ADMIN', '/auth/admin/restaurant', 200],
+    ['WAITER', '/auth/admin/restaurant', 403],
+    ['ADMIN', '/auth/admin/invitations', 200],
+    ['STOREKEEPER', '/auth/admin/invitations', 403],
     ['WAIT_CONFIRM', '/supplies', 401],
     ['invalid', '/orders', 401],
     ['unavailable', '/orders', 503],
@@ -304,5 +310,29 @@ describe('Gateway authentication over RPC', () => {
       .send({ email: user.email, password: 'password' })
       .expect(429);
     expect(sendCommand).not.toHaveBeenCalled();
+  });
+
+  it('validates role, block and invitation mutations and forwards the existing RPC envelope', async () => {
+    await request(app.getHttpServer()).patch('/auth/admin/users/2/role').set('Cookie', 'accessToken=ADMIN').send({ role: 'WAIT_CONFIRM' }).expect(400);
+    await request(app.getHttpServer()).patch('/auth/admin/users/2/block').set('Cookie', 'accessToken=ADMIN').send({ blocked: 'true' }).expect(400);
+    await request(app.getHttpServer()).post('/auth/admin/invitations').set('Cookie', 'accessToken=ADMIN').send({ role: 'WAITER', hours: 0 }).expect(400);
+    await request(app.getHttpServer()).patch('/auth/admin/users/2/role').set('Cookie', 'accessToken=MANAGER').send({ role: 'ADMIN' }).expect(403);
+    await request(app.getHttpServer()).patch('/auth/admin/users/2/role').set('Cookie', 'accessToken=ADMIN').send({ role: 'ADMIN' }).expect(200);
+    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', ROUTING_KEYS.AUTH_SET_USER_ROLE, { accessToken: 'ADMIN', id: 2, dto: { role: 'ADMIN' } }, { timeoutMs: 10000 });
+    const id = '9a8997f7-c425-4719-8d44-ac72d48136ae';
+    await request(app.getHttpServer()).patch(`/auth/admin/invitations/${id}/revoke`).set('Cookie', 'accessToken=ADMIN').expect(200);
+    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', ROUTING_KEYS.AUTH_REVOKE_INVITATION, { accessToken: 'ADMIN', id }, { timeoutMs: 10000 });
+  });
+
+  it('accepts a restaurant-scoped invitation on public registration and rejects caller-provided roles', async () => {
+    const dto = { fullName: 'New User', email: 'new@example.com', password: 'password', restaurantId: 7, invitationId: '9a8997f7-c425-4719-8d44-ac72d48136ae' };
+    await request(app.getHttpServer()).post('/auth/register-user').send({ ...dto, role: 'ADMIN' }).expect(400);
+    await request(app.getHttpServer()).post('/auth/register-user').send(dto).expect(201);
+    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', ROUTING_KEYS.AUTH_REGISTER_USER, { dto }, { timeoutMs: 10000 });
+  });
+
+  it('allows clearing optional restaurant contact fields', async () => {
+    await request(app.getHttpServer()).patch('/auth/admin/restaurant').set('Cookie', 'accessToken=ADMIN').send({ email: '', phone: '  ' }).expect(200);
+    expect(sendCommand).toHaveBeenLastCalledWith('app.commands', ROUTING_KEYS.AUTH_UPDATE_RESTAURANT, { accessToken: 'ADMIN', dto: { email: null, phone: null } }, { timeoutMs: 10000 });
   });
 });

@@ -5,6 +5,7 @@ import {
     Get,
     Param,
     ParseIntPipe,
+    ParseUUIDPipe,
     Patch,
     Post,
     Res,
@@ -36,6 +37,7 @@ import { UpdateRestaurantDto } from "./dto/update-restaurant.dto";
 import { RolesGuard } from "./guards/roles.guards";
 import { Roles } from "./decorators/roles.decorator";
 import { Role } from "@prisma/client";
+import { CreateInvitationDto, SetUserBlockDto, SetUserRoleDto } from './dto/admin.dto';
 
 @ApiTags("auth")
 @Controller("auth")
@@ -126,6 +128,54 @@ export class AuthController {
         });
 
         return { user: result.user };
+    }
+
+    @Get('admin/users')
+    @Roles(Role.ADMIN)
+    getEmployees(@CurrentUser() user: AuthUser) {
+        return this.auth.getAdminUsers(user.id);
+    }
+
+    @Get('admin/restaurant')
+    @Roles(Role.ADMIN)
+    getRestaurant(@CurrentUser() user: AuthUser) {
+        return this.auth.getAdminRestaurant(user.id);
+    }
+
+    @Patch('admin/users/:id/role')
+    @Roles(Role.ADMIN)
+    setUserRole(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() dto: SetUserRoleDto) {
+        return this.auth.setUserRole(user.id, id, dto);
+    }
+
+    @Patch('admin/users/:id/block')
+    @Roles(Role.ADMIN)
+    setUserBlock(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() dto: SetUserBlockDto) {
+        return this.auth.setUserBlock(user.id, id, dto);
+    }
+
+    @Get('admin/invitations')
+    @Roles(Role.ADMIN)
+    getInvitations(@CurrentUser() user: AuthUser) {
+        return this.auth.getInvitations(user.id);
+    }
+
+    @Post('admin/invitations')
+    @Roles(Role.ADMIN)
+    createInvitation(@CurrentUser() user: AuthUser, @Body() dto: CreateInvitationDto) {
+        return this.auth.createInvitation(user.id, dto);
+    }
+
+    @Patch('admin/invitations/:id/revoke')
+    @Roles(Role.ADMIN)
+    revokeInvitation(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+        return this.auth.revokeInvitation(user.id, id);
+    }
+
+    @Delete('admin/invitations/:id')
+    @Roles(Role.ADMIN)
+    deleteInvitation(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+        return this.auth.deleteInvitation(user.id, id);
     }
 
     @Get("admin/users/pending")

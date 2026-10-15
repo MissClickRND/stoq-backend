@@ -168,7 +168,7 @@ describe('inventory Socket.IO delivery', () => {
     expect(sendCommand).toHaveBeenCalledWith('app.commands', 'command.inventory.get_expiring_inventory', { daysThreshold: 7 });
   });
 
-  it.each([null, [], 'bad', {}, { productIds: [-1] }, { productIds: ['7'] }, { productIds: [7], unexpected: true }])(
+  it.each([null, [], 'bad', { productIds: null }, { productIds: [-1] }, { productIds: ['7'] }, { productIds: [7], unexpected: true }])(
     'returns inventory:error for invalid stock payload %j without calling RPC', async (payload) => {
       const socket = await connect();
       await socket.send('inventory:getStock', payload);
@@ -176,6 +176,15 @@ describe('inventory Socket.IO delivery', () => {
       expect(sendCommand).not.toHaveBeenCalled();
     },
   );
+
+  it('returns the complete warehouse when productIds is omitted on initial subscription', async () => {
+    const socket = await connect();
+    const data = [{ id: 9, supplyId: 3, productId: 7, Quantity: 2 }];
+    sendCommand.mockResolvedValue({ success: true, data });
+    await socket.send('inventory:getStock', { requestId: 'store' });
+    expect(await socket.receive()).toEqual([['inventory:stockResult', { requestId: 'store', data }]]);
+    expect(sendCommand).toHaveBeenCalledWith('app.commands', 'command.inventory.get_inventory', { search: undefined });
+  });
 
   it('preserves correlation when inventory RPC fails', async () => {
     const socket = await connect();

@@ -3,6 +3,18 @@ export const EXCHANGES = { COMMANDS: "app.commands" } as const;
 export const QUEUES = { AUTH_COMMANDS: "auth.commands" } as const;
 
 export const ROUTING_KEYS = {
+  AUTH_ADMIN_USERS: 'command.auth.admin_users',
+  AUTH_ADMIN_RESTAURANT: 'command.auth.admin_restaurant',
+  AUTH_SET_USER_ROLE: 'command.auth.set_user_role',
+  AUTH_SET_USER_BLOCK: 'command.auth.set_user_block',
+  AUTH_LIST_INVITATIONS: 'command.auth.list_invitations',
+  AUTH_CREATE_INVITATION: 'command.auth.create_invitation',
+  AUTH_REVOKE_INVITATION: 'command.auth.revoke_invitation',
+  AUTH_DELETE_INVITATION: 'command.auth.delete_invitation',
+  AUTH_CREATE_DEMO_RESTAURANT: 'command.auth.create_demo_restaurant',
+  AUTH_COMPLETE_DEMO_RESTAURANT: 'command.auth.complete_demo_restaurant',
+  AUTH_LIST_DEMO_RESTAURANTS: 'command.auth.list_demo_restaurants',
+  AUTH_DEMO_LOGIN: 'command.auth.demo_login',
   AUTH_GET_RESTAURANTS: 'command.auth.get_restaurants',
   AUTH_GET_RESTAURANT: 'command.auth.get_restaurant',
   AUTH_REGISTER_USER: "command.auth.register_user",
