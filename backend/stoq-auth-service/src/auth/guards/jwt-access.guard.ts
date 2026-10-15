@@ -10,6 +10,8 @@ export class JwtAccessGuard extends AuthGuard('jwt-access') {
   }
 
   canActivate(context: ExecutionContext) {
+    // RPC handlers validate their own token envelope; Passport only handles HTTP.
+    if (context.getType() !== 'http') return true;
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

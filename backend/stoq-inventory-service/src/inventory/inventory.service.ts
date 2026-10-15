@@ -16,6 +16,7 @@ import {
 } from "./dto/request/deduct-stock.dto";
 import { BatchStatus, Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/client";
+import { randomUUID } from "node:crypto";
 
 @Injectable()
 export class InventoryService {
@@ -199,7 +200,7 @@ export class InventoryService {
     const result = await this.prisma.$transaction(async (tx) => {
       const batches = await tx.batch.findMany({
         where: { id: { in: batchIds } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, productId: true },
       });
 
       const statusMap = new Map(batches.map((b) => [b.id, b.status]));
@@ -230,34 +231,67 @@ export class InventoryService {
         }
       }
 
-      return await Promise.all(updates);
+      return {
+        updates: await Promise.all(updates),
+        productIds: [...new Set(batches.map((batch) => batch.productId))],
+      };
     });
 
-    await this.publish("MANUAL_UPDATE");
+    await this.publish("MANUAL_UPDATE", { batchIds, productIds: result.productIds });
 
-    return result;
+    return result.updates;
   }
 
   async writeOffBatch(batchId: number) {
-    if (!Number.isSafeInteger(batchId) || batchId < 1) throw new BadRequestException('Некорректный ID партии');
+    if (!Number.isSafeInteger(batchId) || batchId < 1)
+      throw new BadRequestException("Некорректный ID партии");
     const result = await this.prisma.$transaction(async (tx) => {
-      const batch = await tx.batch.findUnique({ where: { id: batchId }, include: { balance: true } });
-      if (!batch?.balance) throw new NotFoundException('Партия не найдена');
-      if (Number(batch.balance.reservedQuantity) > 0) throw new ConflictException('Партия зарезервирована. Завершите связанные заказы перед списанием');
+      const batch = await tx.batch.findUnique({
+        where: { id: batchId },
+        include: { balance: true },
+      });
+      if (!batch?.balance) throw new NotFoundException("Партия не найдена");
+      if (Number(batch.balance.reservedQuantity) > 0)
+        throw new ConflictException(
+          "Партия зарезервирована. Завершите связанные заказы перед списанием",
+        );
       const quantity = batch.balance.availableQuantity;
-      if (quantity.isZero()) return { batchId, availableQuantity: 0, writtenOffQuantity: 0 };
+      if (quantity.isZero())
+        return { batchId, productId: batch.productId, availableQuantity: 0, writtenOffQuantity: 0 };
       const updated = await tx.batchBalance.updateMany({
         where: { batchId, availableQuantity: quantity, reservedQuantity: 0 },
         data: { availableQuantity: 0, updatedAt: new Date() },
       });
-      if (updated.count !== 1) throw new ConflictException('Остаток изменился. Обновите страницу и повторите списание');
-      if (batch.status !== BatchStatus.EXPIRED) await tx.batch.update({ where: { id: batchId }, data: { status: BatchStatus.DEPLETED } });
-      await tx.stockMovement.create({ data: { orderId: 'manual-write-off', batchId, productId: batch.productId,
-        quantity: quantity.neg(), type: 'WRITE_OFF' } });
-      return { batchId, availableQuantity: 0, writtenOffQuantity: Number(quantity) };
+      if (updated.count !== 1)
+        throw new ConflictException(
+          "Остаток изменился. Обновите страницу и повторите списание",
+        );
+      if (batch.status !== BatchStatus.EXPIRED)
+        await tx.batch.update({
+          where: { id: batchId },
+          data: { status: BatchStatus.DEPLETED },
+        });
+      await tx.stockMovement.create({
+        data: {
+          orderId: "manual-write-off",
+          batchId,
+          productId: batch.productId,
+          quantity: quantity.neg(),
+          type: "WRITE_OFF",
+        },
+      });
+      return {
+        batchId,
+        productId: batch.productId,
+        availableQuantity: 0,
+        writtenOffQuantity: Number(quantity),
+      };
     });
-    if (result.writtenOffQuantity > 0) await this.publish('MANUAL_WRITE_OFF');
-    return result;
+    const { productId, ...response } = result;
+    if (result.writtenOffQuantity > 0) await this.publish("MANUAL_WRITE_OFF", {
+      batchIds: [batchId], productIds: [productId],
+    });
+    return response;
   }
 
   async checkStockAvailability(
@@ -266,6 +300,7 @@ export class InventoryService {
   ) {
     const client = tx || this.prisma;
     const now = new Date();
+
     const shortages: {
       productId: number;
       requested: string;
@@ -280,17 +315,14 @@ export class InventoryService {
           productId: item.productId,
           status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
           expiresAt: { gt: now },
-          balance: {
-            availableQuantity: { gt: new Decimal(0) },
-          },
+          balance: { availableQuantity: { gt: new Decimal(0) } },
         },
-        include: {
-          balance: true,
-        },
-        orderBy: {
-          expiresAt: "asc",
-        },
+        include: { balance: true },
+        orderBy: { expiresAt: "asc" },
       });
+
+      if (batches.length > 0) {
+      }
 
       const totalAvailable = batches.reduce(
         (sum, batch) => sum.add(batch.balance!.availableQuantity),
@@ -314,9 +346,29 @@ export class InventoryService {
         )
         .join("; ");
 
-      throw new BadRequestException(
-        `Недостаточно товаров на складе. ${errorDetails}`,
+      const products = await Promise.all(
+        [...new Set(shortages.map(({ productId }) => productId))].map(async (productId) => {
+          let name = `Товар ID ${productId}`;
+          try {
+            const response: any = await this.commandBusService.sendCommand(
+              EXCHANGES.COMMANDS,
+              ROUTING_KEYS.GET_PRODUCT_BY_ID,
+              { id: productId },
+            );
+            if (response?.success && typeof response.data?.name === "string" && response.data.name.trim()) {
+              name = response.data.name;
+            }
+          } catch {
+            // Preserve the stock error even when the catalog is unavailable.
+          }
+          return { productId, name };
+        }),
       );
+      throw new BadRequestException({
+        statusCode: 400,
+        message: `Недостаточно товаров на складе. ${errorDetails}`,
+        products,
+      });
     }
   }
 
@@ -409,16 +461,24 @@ export class InventoryService {
     });
 
     if (result.success) {
-      await this.publish("ORDER_DEDUCTION");
+      await this.publish("ORDER_DEDUCTION", {
+        productIds: [...new Set(dto.items.map((item) => item.productId))],
+      });
     }
 
     return result;
   }
 
   async getExpiringSoonBatches(daysThreshold: number = 7) {
+    if (!Number.isSafeInteger(daysThreshold) || daysThreshold < 0) {
+      throw new BadRequestException("Некорректный порог срока годности");
+    }
     const now = new Date();
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() + daysThreshold);
+    if (!Number.isFinite(thresholdDate.getTime())) {
+      throw new BadRequestException("Некорректный порог срока годности");
+    }
 
     const batches = await this.prisma.batch.findMany({
       where: {
@@ -504,13 +564,15 @@ export class InventoryService {
   }
 
   private async handleSingleBatchExpiration(batch: any, now: Date) {
-    await this.prisma.$transaction(async (tx) => {
-      const lostQuantity = batch.balance.availableQuantity;
-
+    const notification = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.batch.updateMany({
         where: {
           id: batch.id,
           status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
+          // A supply edit may have extended the lifetime since the scan.
+          expiresAt: { equals: batch.expiresAt, lte: now },
+          productId: batch.productId,
+          balance: { availableQuantity: { gt: new Decimal(0) } },
         },
         data: {
           status: BatchStatus.EXPIRED,
@@ -518,8 +580,14 @@ export class InventoryService {
       });
 
       if (updated.count === 0) {
-        return;
+        return null;
       }
+
+      // Read the balance inside the transaction, after claiming the batch.
+      const balance = await tx.batchBalance.findUniqueOrThrow({
+        where: { batchId: batch.id },
+      });
+      const lostQuantity = balance.availableQuantity;
 
       await tx.batchBalance.update({
         where: { batchId: batch.id },
@@ -540,26 +608,38 @@ export class InventoryService {
         },
       });
 
-      await this.publishBatchExpiredNotification({
+      return {
+        eventId: randomUUID(),
+        occurredAt: now.toISOString(),
         batchId: batch.id,
         productId: batch.productId,
         lostQuantity: lostQuantity.toString(),
-        expiredAt: batch.expiresAt,
-      });
-    });
+        expiredAt: batch.expiresAt.toISOString(),
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    await this.publish("EXPIRATION_WRITE_OFF");
+    if (!notification) return;
+    // Neither event may reach clients until the write-off has committed.
+    // Try both publications even if one of them fails.
+    const results = await Promise.allSettled([
+      this.publishBatchExpiredNotification(notification),
+      this.publish("EXPIRATION_WRITE_OFF", {
+        batchIds: [batch.id],
+        productIds: [batch.productId],
+      }),
+    ]);
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason;
+    }
   }
 
-  private async publish(reason: string) {
-    this.logger.log(`пытаюсь отправить событие: ${reason}`);
+  private async publish(reason: string, details: { batchIds?: number[]; productIds?: number[] } = {}) {
     try {
       await this.commandBusService.publishEvent(
         EXCHANGES.EVENTS,
         ROUTING_KEYS.STOCK_CHANGED,
-        reason,
+        { eventId: randomUUID(), reason, occurredAt: new Date().toISOString(), ...details },
       );
-      this.logger.log(`СОБЫТИЕ ${reason} УСПЕШНО ОТПРАВЛЕНО`);
     } catch (err) {
       this.logger.error(`ОШИБКА при публикации события ${reason}`, err);
       throw err;
@@ -570,7 +650,9 @@ export class InventoryService {
     batchId: number;
     productId: number;
     lostQuantity: string;
-    expiredAt: Date;
+    expiredAt: string;
+    eventId: string;
+    occurredAt: string;
   }) {
     try {
       await this.commandBusService.publishEvent(

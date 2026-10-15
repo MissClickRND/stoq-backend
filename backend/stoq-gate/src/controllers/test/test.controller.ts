@@ -3,6 +3,8 @@ import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
 import { CommandBusService } from '../../common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from '../../common/rabbitMQ/rabbitmq-topology';
+import { Roles } from '../../auth/auth.decorators';
+import { Role } from '../../auth/auth.types';
 
 class ResetBusinessDataDto {
   @ApiProperty({ enum: ['RESET'] })
@@ -12,6 +14,7 @@ class ResetBusinessDataDto {
 
 @ApiTags('Тестовые данные')
 @Controller('test')
+@Roles(Role.ADMIN)
 export class TestController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

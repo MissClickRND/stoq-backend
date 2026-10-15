@@ -1,10 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { AuthUser, Role } from 'src/auth/types/auth-user.type';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { AuthService } from '../auth.service';
 
 function cookieExtractorAccess(req: Request): string | null {
   return req?.cookies?.accessToken ?? null;
@@ -24,7 +24,7 @@ export class JwtAccessStrategy extends PassportStrategy(
 ) {
   constructor(
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([cookieExtractorAccess]),
@@ -33,19 +33,6 @@ export class JwtAccessStrategy extends PassportStrategy(
   }
 
   async validate(payload: JwtAccessPayload): Promise<AuthUser> {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: payload.sub,
-      },
-      select: {
-        tokenVersion: true,
-      },
-    });
-
-    if (!user || user.tokenVersion !== payload.tokenVersion) {
-      throw new UnauthorizedException('Token expired');
-    }
-
-    return { id: payload.sub, email: payload.email, role: payload.role };
+    return this.auth.validateAccessPayload(payload);
   }
 }

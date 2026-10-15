@@ -1,4 +1,6 @@
 import { SupplyResponseDto } from '../../../common/dto/business-response.dto';
+import { Roles } from '../../../auth/auth.decorators';
+import { STAFF } from '../../../auth/auth.types';
 import {
   Controller,
   Get,
@@ -28,6 +30,7 @@ import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 
 @ApiTags('Поставки')
 @Controller('supplies')
+@Roles(...STAFF)
 export class SupplyController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

@@ -4,9 +4,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { corsOptions } from './cors-options';
+import cookieParser from 'cookie-parser';
+import { AuthService } from './auth/auth.service';
+import { AuthIoAdapter } from './auth/auth-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
+  app.useWebSocketAdapter(new AuthIoAdapter(app, app.get(AuthService)));
 
   app.enableCors(corsOptions);
 
@@ -21,7 +26,7 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerConfig = new DocumentBuilder().setTitle('STOQ API Gateway').setDescription('Каталог, поставки, склад, заказы и AI распознавание УПД через POST /ai').setVersion('1.0').build();
+  const swaggerConfig = new DocumentBuilder().setTitle('STOQ API Gateway').setDescription('Авторизация, каталог, поставки, склад, заказы и AI распознавание УПД через POST /ai').setVersion('1.0').addCookieAuth('accessToken').addBearerAuth().build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
 
   SwaggerModule.setup('api', app, swaggerDocument, {

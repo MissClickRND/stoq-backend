@@ -33,6 +33,16 @@ describe('Gateway business POST / GET contracts', () => {
   });
   afterAll(() => app.close());
   beforeEach(() => sendCommand.mockReset());
+  it.each(['create', 'addItems', 'changeStatus'])('returns stock error products over HTTP for %s', async (operation) => {
+    const error = { status: 400, message: 'Недостаточно товаров', products: [{ productId: 7, name: 'Молоко' }] };
+    sendCommand.mockResolvedValue({ success: false, error });
+    const server = app.getHttpServer();
+    const call = operation === 'changeStatus'
+      ? request(server).patch('/orders/9/status').send({ status: 'completed' })
+      : request(server).post(operation === 'create' ? '/orders' : '/orders/9/items')
+          .send({ items: [{ dishId: 1, quantity: 1 }] });
+    await call.expect(400, { statusCode: 400, message: error.message, products: error.products });
+  });
   it('supply POST preserves supplier and line total; both GETs preserve total and supplier', async () => {
     const response = {
       id: 1,

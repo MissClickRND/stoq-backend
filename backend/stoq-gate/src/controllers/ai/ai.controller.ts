@@ -1,3 +1,5 @@
+import { Roles } from '../../auth/auth.decorators';
+import { STAFF } from '../../auth/auth.types';
 import {
   Controller,
   Get,
@@ -22,6 +24,7 @@ import { AiUploadInterceptor } from './ai-upload.interceptor';
 
 @ApiTags('AI')
 @Controller('ai')
+@Roles(...STAFF)
 @UseFilters(HttpExceptionFilter)
 export class AiController {
   constructor(private readonly service: AiService) {}

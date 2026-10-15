@@ -7,15 +7,18 @@ import { JwtAccessGuard } from './auth/guards/jwt-access.guard';
 import { RolesGuard } from './auth/guards/roles.guards';
 import { UsersModule } from './users/users.module';
 
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { HttpThrottlerGuard } from './auth/guards/http-throttler.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
-        PORT: Joi.number().port().default(3000),
+        PORT: Joi.number().port().default(3001),
         DATABASE_URL: Joi.string().required(),
+        JWT_ACCESS_SECRET: Joi.string().required(),
+        JWT_REFRESH_SECRET: Joi.string().required(),
       }),
     }),
     ThrottlerModule.forRoot([
@@ -39,7 +42,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     },
     {
       provide: 'APP_GUARD',
-      useClass: ThrottlerGuard,
+      useClass: HttpThrottlerGuard,
     },
   ],
 })

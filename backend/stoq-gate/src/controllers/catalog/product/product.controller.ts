@@ -1,3 +1,5 @@
+import { Roles } from '../../../auth/auth.decorators';
+import { FULL_ACCESS, STAFF } from '../../../auth/auth.types';
 import {
   Body,
   Controller,
@@ -32,6 +34,7 @@ import { CreateUnitDto } from './dto/create-unit.dto';
 @ApiTags('Товары')
 @ApiExtraModels(CreateProductDto)
 @Controller('product')
+@Roles(...FULL_ACCESS)
 export class ProductController {
   constructor(private readonly commandBusService: CommandBusService) {}
 
@@ -51,6 +54,7 @@ export class ProductController {
   })
   @ApiOkResponse({ description: 'Список активных товаров' })
   @Get()
+  @Roles(...STAFF)
   async findAll(@Query('search') search?: string) {
     const payload = { search: search };
     const response = await this.commandBusService.sendCommand(
@@ -108,6 +112,7 @@ export class ProductController {
   }
 
   @Get('units')
+  @Roles(...STAFF)
   @ApiOperation({ summary: 'Получить список единиц измерения' })
   @ApiOkResponse({ description: 'Список единиц измерения' })
   async findAllUnits() {
@@ -121,6 +126,7 @@ export class ProductController {
   }
 
   @Get(':id')
+  @Roles(...STAFF)
   @ApiOperation({ summary: 'Получить продукт по ID' })
   @ApiParam({ name: 'id', description: 'ID продукта', example: 1 })
   @ApiOkResponse({ description: 'Найденный продукт' })
@@ -152,6 +158,7 @@ export class ProductController {
   }
 
   @Get('units/:id')
+  @Roles(...STAFF)
   @ApiOperation({ summary: 'Получить единицу измерения по ID' })
   @ApiParam({ name: 'id', description: 'ID единицы измерения', example: 1 })
   @ApiOkResponse({ description: 'Найденная единица измерения' })

@@ -3,6 +3,7 @@ import {
     ForbiddenException,
     Injectable,
     NotFoundException,
+    UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
@@ -15,6 +16,9 @@ import { LoginDto } from "./dto/login.dto";
 import { RegisterRestaurantDto } from "./dto/register-restaurant.dto";
 import { ApproveUserDto } from "./dto/approve-user.dto";
 import { UpdateRestaurantDto } from "./dto/update-restaurant.dto";
+import { createHash, randomUUID } from 'node:crypto';
+import { parseDurationMs } from './utils/parse-duration-ms';
+import type { AuthUser } from './types/auth-user.type';
 
 @Injectable()
 export class AuthService {
@@ -131,16 +135,18 @@ export class AuthService {
     }
 
     async login(dto: LoginDto) {
-        const email = dto.email;
+        const email = dto.email.toLowerCase().trim();
         const user = await this.prisma.user.findUnique({
             where: {
                 email,
             },
             select: {
                 id: true,
+                fullName: true,
                 email: true,
                 passwordHash: true,
                 role: true,
+                restaurantId: true,
                 tokenVersion: true,
             },
         });
@@ -156,7 +162,7 @@ export class AuthService {
             );
         }
 
-        const safeUser = { id: user.id, email: user.email };
+        const safeUser = { id: user.id, fullName: user.fullName, email: user.email, role: user.role, restaurantId: user.restaurantId };
         const tokens = await this.issueTokens(
             user.id,
             user.email,
@@ -325,18 +331,20 @@ export class AuthService {
             where: { id: userId },
             select: {
                 id: true,
+                fullName: true,
                 email: true,
                 hashedRefreshToken: true,
                 role: true,
+                restaurantId: true,
                 tokenVersion: true,
             },
         });
 
-        if (!user || !user.hashedRefreshToken)
+        if (!user || !user.hashedRefreshToken || user.role === Role.WAIT_CONFIRM)
             throw new ForbiddenException("Access Denied");
 
         const matches = await bcrypt.compare(
-            refreshTokenFromCookie,
+            this.refreshDigest(refreshTokenFromCookie),
             user.hashedRefreshToken,
         );
         if (!matches) throw new ForbiddenException("Access Denied");
@@ -351,13 +359,13 @@ export class AuthService {
         await this.setRefreshTokenHash(user.id, tokens.refreshToken);
 
         return {
-            user: { id: user.id, email: user.email, role: user.role },
+            user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role, restaurantId: user.restaurantId },
             ...tokens,
         };
     }
 
     private async setRefreshTokenHash(userId: number, refreshToken: string) {
-        const hash = await bcrypt.hash(refreshToken, 10);
+        const hash = await bcrypt.hash(this.refreshDigest(refreshToken), 10);
         await this.prisma.user.update({
             where: { id: userId },
             data: { hashedRefreshToken: hash },
@@ -375,16 +383,62 @@ export class AuthService {
         const [accessToken, refreshToken] = await Promise.all([
             this.jwt.signAsync(payload, {
                 secret: this.getAccessSecret(),
-                expiresIn: this.getAccessExpires(),
+                expiresIn: parseDurationMs(this.getAccessExpires()) / 1000,
             }),
             this.jwt.signAsync(
-                { sub: userId, email },
+                { sub: userId, email, tokenVersion, jti: randomUUID() },
                 {
                     secret: this.getRefreshSecret(),
-                    expiresIn: this.getRefreshExpires(),
+                    expiresIn: parseDurationMs(this.getRefreshExpires()) / 1000,
                 },
             ),
         ]);
-        return { accessToken, refreshToken };
+        return {
+            accessToken, refreshToken,
+            accessMaxAgeMs: parseDurationMs(this.getAccessExpires()),
+            refreshMaxAgeMs: parseDurationMs(this.getRefreshExpires()),
+        };
+    }
+
+    private refreshDigest(token: string) {
+        // bcrypt only considers the first 72 bytes; digest the complete JWT before hashing.
+        return createHash('sha256').update(token).digest('hex');
+    }
+
+    async validateAccessPayload(payload: { sub: number; tokenVersion: number }): Promise<AuthUser> {
+        if (!Number.isSafeInteger(payload?.sub) || !Number.isInteger(payload.tokenVersion)) {
+            throw new UnauthorizedException('Недействительный токен');
+        }
+        const user = await this.prisma.user.findUnique({
+            where: { id: payload.sub },
+            select: { id: true, email: true, fullName: true, role: true, restaurantId: true, tokenVersion: true },
+        });
+        if (!user || user.tokenVersion !== payload.tokenVersion || user.role === Role.WAIT_CONFIRM) {
+            throw new UnauthorizedException('Сессия недействительна');
+        }
+        return { id: user.id, email: user.email, fullName: user.fullName, role: user.role, restaurantId: user.restaurantId };
+    }
+
+    async verifyAccessToken(accessToken: string): Promise<AuthUser> {
+        let payload: { sub: number; tokenVersion: number };
+        try {
+            if (typeof accessToken !== 'string' || !accessToken) throw new Error();
+            payload = await this.jwt.verifyAsync(accessToken, { secret: this.getAccessSecret(), algorithms: ['HS256'] });
+        } catch {
+            throw new UnauthorizedException('Недействительный или просроченный токен');
+        }
+        return this.validateAccessPayload(payload);
+    }
+
+    async refreshByToken(refreshToken: string) {
+        let payload: { sub: number; tokenVersion: number };
+        try {
+            if (typeof refreshToken !== 'string' || !refreshToken) throw new Error();
+            payload = await this.jwt.verifyAsync(refreshToken, { secret: this.getRefreshSecret(), algorithms: ['HS256'] });
+        } catch {
+            throw new UnauthorizedException('Недействительный или просроченный refresh-токен');
+        }
+        await this.validateAccessPayload(payload);
+        return this.refreshTokens(payload.sub, refreshToken);
     }
 }

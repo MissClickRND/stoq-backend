@@ -11,16 +11,20 @@ function setup(quantity: number, reserved = 0) {
   };
   const prisma: any = { $transaction: jest.fn(async (fn) => fn(tx)) };
   const bus: any = { publishEvent: jest.fn() };
-  return { service: new InventoryService(prisma, bus), tx };
+  return { service: new InventoryService(prisma, bus), tx, bus };
 }
 
 describe('warehouse write-off', () => {
   it('sets available stock to zero and records the removed amount', async () => {
-    const { service, tx } = setup(2.5);
+    const { service, tx, bus } = setup(2.5);
     const result = await service.writeOffBatch(9);
     expect(result.availableQuantity).toBe(0);
     expect(tx.batchBalance.updateMany.mock.calls[0][0].where.batchId).toBe(9);
     expect(Number(tx.stockMovement.create.mock.calls[0][0].data.quantity)).toBe(-2.5);
+    expect(result).toEqual({ batchId: 9, availableQuantity: 0, writtenOffQuantity: 2.5 });
+    expect(bus.publishEvent).toHaveBeenCalledWith('app.events', 'inventory.stock.changed', expect.objectContaining({
+      reason: 'MANUAL_WRITE_OFF', productIds: [7], batchIds: [9],
+    }));
   });
   it('is idempotent for depleted batches', async () => {
     const { service, tx } = setup(0);

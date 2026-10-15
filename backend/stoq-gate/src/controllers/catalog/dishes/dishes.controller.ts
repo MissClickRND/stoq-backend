@@ -1,4 +1,6 @@
 import { DishResponseDto } from '../../../common/dto/business-response.dto';
+import { Roles } from '../../../auth/auth.decorators';
+import { OPERATIONS } from '../../../auth/auth.types';
 import {
   Controller,
   Get,
@@ -28,6 +30,7 @@ import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @ApiTags('Блюда')
 @Controller('dishes')
+@Roles(...OPERATIONS)
 export class DishesController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

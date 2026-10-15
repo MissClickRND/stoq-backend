@@ -29,7 +29,7 @@ export class RegisterRestaurantDto {
         format: "email",
     })
     @IsEmail()
-    @Transform(({ value }) => value.toLowerCase().trim())
+    @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase().trim() : value)
     email!: string;
 
     @ApiProperty({

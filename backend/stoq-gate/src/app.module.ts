@@ -16,14 +16,18 @@ import { RecommendationsController } from './controllers/recommendation/recommen
 import { InventoryEventsListener } from './controllers/inventory/inventory/inventory-events.listener';
 import { InventoryWsGateway } from './controllers/inventory/inventory/inventory.ws.gateway';
 import { TestController } from './controllers/test/test.controller';
+import { AuthModule } from './auth/auth.module';
+import { MenuController } from './controllers/catalog/dishes/menu.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     CommandBusModule,
+    AuthModule,
     AiModule,
   ],
   controllers: [
+    MenuController,
     ProductController,
     TestController,
     // RecipesController,

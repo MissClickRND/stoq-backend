@@ -1,3 +1,5 @@
+import { Roles } from '../../../auth/auth.decorators';
+import { OPERATIONS } from '../../../auth/auth.types';
 import {
   Controller,
   Get,
@@ -26,6 +28,7 @@ import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @ApiTags('Рецепты')
 @Controller('recipes')
+@Roles(...OPERATIONS)
 export class RecipesController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

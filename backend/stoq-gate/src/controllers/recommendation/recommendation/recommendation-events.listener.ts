@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import {
   EXCHANGES,
   ROUTING_KEYS,
-  QUEUES,
 } from 'src/common/rabbitMQ/rabbitmq-topology';
 import { RecommendationsWsGateway } from './recommendation.ws.gateway';
 
@@ -14,7 +13,8 @@ export class RecommendationEventsListener {
   @RabbitSubscribe({
     exchange: EXCHANGES.EVENTS,
     routingKey: ROUTING_KEYS.STOP_LIST_UPDATED,
-    queue: QUEUES.GATEWAY_EVENTS,
+    queue: '',
+    queueOptions: { exclusive: true, autoDelete: true, durable: false },
   })
   onStopListUpdated(payload: any) {
     this.wsGateway.broadcastStopListUpdated(payload);

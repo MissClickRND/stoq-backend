@@ -1,4 +1,6 @@
 import { InventoryResponseDto } from '../../../common/dto/business-response.dto';
+import { Roles } from '../../../auth/auth.decorators';
+import { OPERATIONS } from '../../../auth/auth.types';
 import {
   Controller,
   Get,
@@ -29,6 +31,7 @@ import {
 
 @ApiTags('Остатки')
 @Controller('inventory')
+@Roles(...OPERATIONS)
 export class InventoryController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

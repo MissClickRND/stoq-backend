@@ -13,10 +13,13 @@ import {
 } from './dependency-graph.dto';
 import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
+import { Roles } from '../../auth/auth.decorators';
+import { FULL_ACCESS } from '../../auth/auth.types';
 
 @ApiTags('Аналитика')
 @ApiExtraModels(IngredientGraphNodeDto, DishGraphNodeDto)
 @Controller('analytics')
+@Roles(...FULL_ACCESS)
 export class DependencyGraphController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

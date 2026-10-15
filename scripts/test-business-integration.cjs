@@ -41,6 +41,13 @@ async function main() {
     const { Test } = load(name, 'node_modules/@nestjs/testing');
     const { AppModule } = load(name, 'dist/app.module.js');
     let builder = Test.createTestingModule({ imports: [AppModule] });
+    if (name === 'stoq-gate') {
+      // This suite isolates business contracts; test-auth-integration.cjs covers real authentication.
+      const { AuthService } = load(name, 'dist/auth/auth.service.js');
+      builder = builder.overrideProvider(AuthService).useValue({ verifyAccess: async () => ({
+        id: 1, fullName: 'Business Test Admin', email: 'business@example.com', role: 'ADMIN', restaurantId: 1,
+      }) });
+    }
     if (name !== 'stoq-gate') {
       const { PrismaService } = load(name, 'dist/prisma/prisma.service.js');
       const client = new PrismaService();

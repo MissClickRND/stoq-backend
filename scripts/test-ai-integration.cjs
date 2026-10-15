@@ -32,6 +32,7 @@ const { configureApp } = require(path.join(workerDir, "dist/configure-app"));
 const { AppModule: GateModule } = require(
   path.join(gateDir, "dist/app.module"),
 );
+const { AuthService } = require(path.join(gateDir, 'dist/auth/auth.service'));
 const { SwaggerModule, DocumentBuilder } = require(
   path.join(gateDir, "node_modules/@nestjs/swagger"),
 );
@@ -88,7 +89,11 @@ async function main() {
     await worker.listen(0, "127.0.0.1");
     const gateModule = await GateTest.createTestingModule({
       imports: [GateModule],
-    }).compile();
+    })
+      // AI transport is isolated here; real auth is exercised by test-auth-integration.cjs.
+      .overrideProvider(AuthService)
+      .useValue({ verifyAccess: async () => ({ id: 1, fullName: 'AI Test Admin', email: 'ai@example.com', role: 'ADMIN', restaurantId: 1 }) })
+      .compile();
     gateway = gateModule.createNestApplication({ logger: false });
     SwaggerModule.setup(
       "api",

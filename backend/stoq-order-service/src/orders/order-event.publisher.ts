@@ -30,6 +30,5 @@ export class OrderEventPublisher {
       ROUTING_KEYS.ORDER_CREATED,
       event,
     );
-    console.log(result)
   }
 }

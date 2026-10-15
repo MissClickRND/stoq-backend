@@ -96,3 +96,72 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Socket.IO: склад и уведомления
+
+Подключение к namespace `/inventory` на gateway, стандартный transport path `/socket.io/`.
+
+`inventory:stockChanged` содержит:
+
+- `data`: полный массив ответа `GET /inventory` без фильтра `search`, включая продукт,
+  единицу измерения, партии, количества, цены и сроки годности. Пустой склад передаётся как `[]`.
+- `eventId`, `reason`, `occurredAt`: идентификатор события, причина и время изменения.
+- `problem`, `message`: описание изменения и готовый текст на русском языке.
+- `notifications`: уведомления по затронутым продуктам с полями `productId`, `productName`,
+  `problem`, `message`, `severity` (`info` или `warning`). При сбросе склада вместо продукта
+  используется общее уведомление с `productId: null`, `productName: null`.
+- `productIds`, `batchIds`, `supplyId`: идентификаторы затронутых сущностей, когда применимо.
+
+`data` можно сразу использовать вместо дополнительного HTTP-запроса:
+
+```ts
+import { io } from 'socket.io-client';
+
+const socket = io(`${GATEWAY_URL}/inventory`);
+socket.on('inventory:stockChanged', ({ data, notifications }) => {
+  replaceInventory(data); // заменить весь список склада
+  // notifications содержат названия затронутых продуктов и описание изменения
+});
+socket.on('inventory:batchExpired', (notification) => {
+  showNotification(notification.message);
+});
+```
+
+Пример `inventory:batchExpired`:
+
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "occurredAt": "2026-10-15T12:00:00.000Z",
+  "batchId": 9,
+  "productId": 7,
+  "productName": "Молоко",
+  "product": { "id": 7, "name": "Молоко", "unit": { "id": 1, "name": "Литр", "shortName": "л" } },
+  "problem": "Истёк срок годности",
+  "message": "Молоко: истёк срок годности партии №9. Списано 2.5 л.",
+  "severity": "warning",
+  "lostQuantity": "2.5",
+  "expiredAt": "2026-10-15T11:59:00.000Z"
+}
+```
+
+После просрочки приходят оба события: `batchExpired` для уведомления и `stockChanged`
+с новым списком склада. Проверка просрочки выполняется каждую минуту. Партия может
+просрочиться, даже если у того же продукта остались другие годные партии.
+
+Названия списанных/удалённых со склада продуктов берутся из каталога. Если каталог
+недоступен или продукт удалён, уведомление всё равно приходит с названием `Продукт #ID`
+и `product: null` для просрочки. При ошибке получения списка склада ложный снимок `[]`
+не отправляется. Снимки обрабатываются последовательно, чтобы медленный запрос не
+перезаписал более поздний.
+
+События не хранят историю для офлайн-клиента: при `connect`/переподключении нужно получить
+начальное состояние через `GET /inventory`. Подписки регистрировать вне обработчика `connect`.
+После обновления перезапустить inventory и gateway; миграции БД не требуются.
+
+## Авторизация
+
+Auth подключён через RabbitMQ по общей схеме `CommandBusService` → RPC.
+Frontend использует `/auth/*` на gateway. Роли проверяются для HTTP и Socket.IO;
+гостевые маршруты — `GET /menu` и `POST /orders` без сессии.
+Настройка, таблица доступов и тесты: [auth-gateway](../../docs/auth-gateway.md).

@@ -4,8 +4,10 @@ export type AuthUser = {
   id: number;
   email: string;
   role: Role;
+  restaurantId: number;
+  fullName: string;
 };
 
-export type AuthUserWithRefresh = AuthUser & {
+export type AuthUserWithRefresh = Pick<AuthUser, 'id' | 'email'> & {
   refreshToken: string;
 };

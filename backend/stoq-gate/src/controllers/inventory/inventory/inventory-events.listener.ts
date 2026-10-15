@@ -1,7 +1,7 @@
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { Injectable } from '@nestjs/common';
 import { InventoryWsGateway } from './inventory.ws.gateway';
-import { EXCHANGES, ROUTING_KEYS, QUEUES } from 'src/common/rabbitMQ/rabbitmq-topology';
+import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @Injectable()
 export class InventoryEventsListener {
@@ -10,18 +10,21 @@ export class InventoryEventsListener {
   @RabbitSubscribe({
     exchange: EXCHANGES.EVENTS,
     routingKey: ROUTING_KEYS.STOCK_CHANGED,
-    queue: QUEUES.GATEWAY_EVENTS,
+    // Each handler and gateway instance must receive its own copy.
+    queue: '',
+    queueOptions: { exclusive: true, autoDelete: true, durable: false },
   })
-  onStockChanged(payload: any) {
-    this.wsGateway.broadcastStockChanged(payload);
+  async onStockChanged(payload: any) {
+    await this.wsGateway.broadcastStockChanged(payload);
   }
 
   @RabbitSubscribe({
     exchange: EXCHANGES.EVENTS,
     routingKey: ROUTING_KEYS.BATCH_EXPIRED,
-    queue: QUEUES.GATEWAY_EVENTS,
+    queue: '',
+    queueOptions: { exclusive: true, autoDelete: true, durable: false },
   })
-  onBatchExpired(payload: any) {
-    this.wsGateway.broadcastBatchExpired(payload);
+  async onBatchExpired(payload: any) {
+    await this.wsGateway.broadcastBatchExpired(payload);
   }
 }

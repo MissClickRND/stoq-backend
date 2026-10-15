@@ -1,4 +1,6 @@
 import { Controller, Get, HttpException, Query } from '@nestjs/common';
+import { Roles } from '../../../auth/auth.decorators';
+import { OPERATIONS } from '../../../auth/auth.types';
 import {
   ApiOkResponse,
   ApiOperation,
@@ -10,6 +12,7 @@ import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @ApiTags('Рекоммендации')
 @Controller('recommendations')
+@Roles(...OPERATIONS)
 export class RecommendationsController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

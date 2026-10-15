@@ -2,9 +2,12 @@ import { Controller, Get, HttpException } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CommandBusService } from 'src/common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
+import { Roles } from '../../../auth/auth.decorators';
+import { FULL_ACCESS } from '../../../auth/auth.types';
 
 @ApiTags('Статистика')
 @Controller('statistics')
+@Roles(...FULL_ACCESS)
 export class StatisticsController {
   constructor(private readonly commandBusService: CommandBusService) {}
 

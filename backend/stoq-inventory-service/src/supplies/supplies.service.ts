@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CreateSupplyDto } from "./dto/requests/create-supply.dto";
@@ -17,9 +18,11 @@ import {
   SupplyWithItemsResponseDto,
 } from "./dto/response/supply-response.dto";
 import { ProductResponseDto } from "./dto/response/product-response.dto";
+import { randomUUID } from "node:crypto";
 
 @Injectable()
 export class SupplyService {
+  private readonly logger = new Logger(SupplyService.name);
   constructor(
     private prisma: PrismaService,
     private readonly commandBusService: CommandBusService,
@@ -143,7 +146,9 @@ export class SupplyService {
 
       // 4. 🚀 ПУБЛИКУЕМ СОБЫТИЕ ПОСЛЕ УСПЕШНОЙ ТРАНЗАКЦИИ
       // Используем тот же ROUTING_KEYS.STOCK_CHANGED, который слушает RecommendationEventsController
-      await this.publishStockChanged("SUPPLY_CREATED", { supplyId: result.id });
+      await this.publishStockChanged("SUPPLY_CREATED", {
+        supplyId: result.id, productIds: [...new Set(dto.items.map((item) => item.productId))],
+      });
 
       return result;
     } catch (error) {
@@ -162,9 +167,11 @@ export class SupplyService {
       await this.commandBusService.publishEvent(
         EXCHANGES.EVENTS,
         ROUTING_KEYS.STOCK_CHANGED,
-        payload || reason,
+        { ...payload, eventId: randomUUID(), reason, occurredAt: new Date().toISOString() },
       );
-    } catch (err) {}
+    } catch (err) {
+      this.logger.error(`Ошибка публикации изменения склада: ${reason}`, err);
+    }
   }
 
   async updateSupply(id: number, dto: CreateSupplyDto) {
@@ -237,10 +244,13 @@ export class SupplyService {
             await tx.batchBalance.create({ data: { batchId: batch.id, availableQuantity: item.quantity, reservedQuantity: 0 } });
           }
         }
-        return mapSupplyWithItemsToDto({ ...supply, items }, productsById);
+        return {
+          response: mapSupplyWithItemsToDto({ ...supply, items }, productsById),
+          productIds: [...new Set([...previous.items, ...dto.items].map((item) => item.productId))],
+        };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      await this.publishStockChanged('SUPPLY_UPDATED', { supplyId: id });
-      return result;
+      await this.publishStockChanged('SUPPLY_UPDATED', { supplyId: id, productIds: result.productIds });
+      return result.response;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') throw new ConflictException('Поставка с таким номером уже существует');

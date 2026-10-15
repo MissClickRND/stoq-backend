@@ -16,6 +16,21 @@ import { CommandBusService } from '../common/rabbitMQ/command-bus.service';
 import { EXCHANGES, ROUTING_KEYS } from '../common/rabbitMQ/rabbitmq-topology';
 import { OrderEventPublisher } from './order-event.publisher';
 
+interface ResolvedOrderItem extends OrderItemDto {
+  dish: {
+    id: number;
+    name: string;
+    imageURL?: string;
+    salePrice: number;
+    recipeItems: { productId: number; quantity: number }[];
+  };
+}
+
+interface InventoryItem {
+  productId: number;
+  quantity: number;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -25,7 +40,11 @@ export class OrdersService {
   ) {}
 
   async resetBusinessData(confirmation: string) {
-    if (confirmation !== 'RESET' || (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_TOOLS !== 'true')) {
+    if (
+      confirmation !== 'RESET' ||
+      (process.env.NODE_ENV === 'production' &&
+        process.env.ENABLE_TEST_TOOLS !== 'true')
+    ) {
       throw new ForbiddenException('Сброс тестовых данных отключён');
     }
     return this.prisma.$transaction(async (tx) => {
@@ -35,7 +54,9 @@ export class OrdersService {
     });
   }
 
-  private async priceItems(items: OrderItemDto[]) {
+  private async resolveItems(
+    items: OrderItemDto[],
+  ): Promise<ResolvedOrderItem[]> {
     return Promise.all(
       items.map(async (item) => {
         if (
@@ -67,27 +88,70 @@ export class OrdersService {
           );
         }
         const dish = response.data;
-        if (
-          dish?.id !== item.dishId ||
-          typeof dish.name !== 'string' ||
-          !dish.name.trim() ||
-          typeof dish.salePrice !== 'number' ||
-          !Number.isFinite(dish.salePrice) ||
-          dish.salePrice < 0
-        ) {
+        if (dish?.id !== item.dishId) {
           throw new BadRequestException(
-            `Для блюда #${item.dishId} не указана корректная цена продажи`,
+            `Некорректные данные блюда #${item.dishId}`,
           );
         }
-        return {
-          dishId: item.dishId,
-          quantity: item.quantity,
-          name: dish.name,
-          imageURL: typeof dish.imageURL === 'string' ? dish.imageURL : null,
-          price: new Prisma.Decimal(dish.salePrice).toDecimalPlaces(2),
-        };
+        return { ...item, dish };
       }),
     );
+  }
+
+  private priceItems(items: ResolvedOrderItem[]) {
+    return items.map(({ dish, ...item }) => {
+      if (
+        dish?.id !== item.dishId ||
+        typeof dish.name !== 'string' ||
+        !dish.name.trim() ||
+        typeof dish.salePrice !== 'number' ||
+        !Number.isFinite(dish.salePrice) ||
+        dish.salePrice < 0
+      ) {
+        throw new BadRequestException(
+          `Для блюда #${item.dishId} не указана корректная цена продажи`,
+        );
+      }
+      return {
+        dishId: item.dishId,
+        quantity: item.quantity,
+        name: dish.name,
+        imageURL: typeof dish.imageURL === 'string' ? dish.imageURL : null,
+        price: new Prisma.Decimal(dish.salePrice).toDecimalPlaces(2),
+      };
+    });
+  }
+
+  private toInventoryItems(items: ResolvedOrderItem[]): InventoryItem[] {
+    const quantities = new Map<number, Prisma.Decimal>();
+    for (const { dish, quantity } of items) {
+      if (!Array.isArray(dish.recipeItems) || !dish.recipeItems.length) {
+        throw new BadRequestException(
+          `Для блюда #${dish.id} не указана рецептура`,
+        );
+      }
+      for (const ingredient of dish.recipeItems) {
+        if (
+          !Number.isSafeInteger(ingredient?.productId) ||
+          ingredient.productId < 1 ||
+          typeof ingredient.quantity !== 'number' ||
+          !Number.isFinite(ingredient.quantity) ||
+          ingredient.quantity <= 0
+        ) {
+          throw new BadRequestException(
+            `Некорректная рецептура блюда #${dish.id}`,
+          );
+        }
+        const total = (
+          quantities.get(ingredient.productId) ?? new Prisma.Decimal(0)
+        ).add(new Prisma.Decimal(ingredient.quantity).mul(quantity));
+        quantities.set(ingredient.productId, total);
+      }
+    }
+    return Array.from(quantities, ([productId, quantity]) => ({
+      productId,
+      quantity: quantity.toNumber(),
+    }));
   }
 
   private assertUniqueDishes(items: OrderItemDto[]) {
@@ -118,12 +182,7 @@ export class OrdersService {
     }
   }
 
-  private async checkStockAvailability(items: OrderItemDto[]) {
-    const inventoryItems = items.map((item) => ({
-      productId: item.dishId,
-      quantity: item.quantity,
-    }));
-
+  private async checkStockAvailability(inventoryItems: InventoryItem[]) {
     let response: any;
     try {
       response = await this.commandBusService.sendCommand(
@@ -139,7 +198,11 @@ export class OrdersService {
 
     if (!response?.success) {
       throw new HttpException(
-        response?.error?.message ?? 'Недостаточно товаров на складе',
+        {
+          statusCode: response?.error?.status ?? 400,
+          message: response?.error?.message ?? 'Недостаточно товаров на складе',
+          products: response?.error?.products ?? [],
+        },
         response?.error?.status ?? 400,
       );
     }
@@ -149,10 +212,9 @@ export class OrdersService {
     orderId: number,
     items: { dishId: number; quantity: number }[],
   ) {
-    const inventoryItems = items.map((item) => ({
-      productId: item.dishId,
-      quantity: item.quantity,
-    }));
+    const inventoryItems = this.toInventoryItems(
+      await this.resolveItems(items),
+    );
 
     let response: any;
     try {
@@ -162,7 +224,7 @@ export class OrdersService {
         {
           dto: {
             idempotencyKey: `order-${orderId}-deduction`,
-            orderId: orderId,
+            orderId: String(orderId),
             items: inventoryItems,
           },
         },
@@ -175,7 +237,11 @@ export class OrdersService {
 
     if (!response?.success) {
       throw new HttpException(
-        response?.error?.message ?? 'Ошибка списания товаров со склада',
+        {
+          statusCode: response?.error?.status ?? 400,
+          message: response?.error?.message ?? 'Ошибка списания товаров со склада',
+          products: response?.error?.products ?? [],
+        },
         response?.error?.status ?? 400,
       );
     }
@@ -200,7 +266,11 @@ export class OrdersService {
 
     if (items.length > 0) {
       this.assertUniqueDishes(items);
-      await this.checkStockAvailability(items);
+    }
+    const resolvedItems = await this.resolveItems(items);
+    const pricedItems = this.priceItems(resolvedItems);
+    if (items.length > 0) {
+      await this.checkStockAvailability(this.toInventoryItems(resolvedItems));
     }
 
     const data: Prisma.OrderCreateInput = {
@@ -212,7 +282,7 @@ export class OrdersService {
 
     if (items.length > 0) {
       data.items = {
-        create: await this.priceItems(items),
+        create: pricedItems,
       };
     }
 
@@ -249,9 +319,9 @@ export class OrdersService {
       throw new ConflictException('Одно или несколько блюд уже есть в заказе');
     }
 
-    await this.checkStockAvailability(dto.items);
-
-    const pricedItems = await this.priceItems(dto.items);
+    const resolvedItems = await this.resolveItems(dto.items);
+    const pricedItems = this.priceItems(resolvedItems);
+    await this.checkStockAvailability(this.toInventoryItems(resolvedItems));
     await this.prisma.$transaction(
       pricedItems.map((item) =>
         this.prisma.orderItem.create({
@@ -345,7 +415,6 @@ export class OrdersService {
       include: { items: true },
     });
 
-    // Списываем товары со склада при подтверждении или завершении заказа
     if (
       payload.status === OrderStatus.confirmed ||
       payload.status === OrderStatus.completed

@@ -27,20 +27,29 @@ import { AddOrderItemsDto } from './dto/request/add-item.dto';
 import { EXCHANGES, ROUTING_KEYS } from 'src/common/rabbitMQ/rabbitmq-topology';
 import { CreateOrderDto } from './dto/request/create-order.dto';
 import { ChangeStatusDto } from './dto/request/change-status.dto';
+import { OrderErrorDto } from './dto/response/order-error.dto';
+import { Roles, AllowGuest } from '../../auth/auth.decorators';
+import { OPERATIONS } from '../../auth/auth.types';
 
 @ApiTags('Заказы')
 @Controller('orders')
+@Roles(...OPERATIONS)
 export class OrderController {
   constructor(private readonly commandBusService: CommandBusService) {}
 
   private handleRpcResponse<T>(response: any): T {
     if (!response.success) {
-      throw new HttpException(response.error.message, response.error.status);
+      throw new HttpException({
+        statusCode: response.error.status,
+        message: response.error.message,
+        products: response.error.products ?? [],
+      }, response.error.status);
     }
     return response.data;
   }
 
   @Post()
+  @AllowGuest()
   @ApiOperation({
     summary: 'Создать заказ (опционально сразу с блюдами)',
   })
@@ -49,6 +58,7 @@ export class OrderController {
     description: 'Заказ успешно создан',
   })
   @ApiBadRequestResponse({
+    type: OrderErrorDto,
     description: 'Некорректные данные',
   })
   @ApiConflictResponse({
@@ -98,7 +108,7 @@ export class OrderController {
   @ApiParam({ name: 'id', description: 'ID заказа', example: 1 })
   @ApiBody({ type: AddOrderItemsDto })
   @ApiCreatedResponse({ type: OrderResponseDto, description: 'Блюда добавлены в заказ' })
-  @ApiBadRequestResponse({ description: 'Некорректные данные' })
+  @ApiBadRequestResponse({ type: OrderErrorDto, description: 'Некорректные данные или недостаточно продуктов' })
   @ApiNotFoundResponse({ description: 'Заказ не найден' })
   @ApiConflictResponse({
     description: 'Блюдо уже добавлено или заказ закрыт',
@@ -118,6 +128,7 @@ export class OrderController {
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'Завершить заказ' })
+  @ApiBadRequestResponse({ type: OrderErrorDto, description: 'Ошибка списания продуктов' })
   @ApiOkResponse({ type: OrderResponseDto, description: 'Заказ завершён' })
   async changeStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: ChangeStatusDto) {
     return this.handleRpcResponse(await this.commandBusService.sendCommand(EXCHANGES.COMMANDS,

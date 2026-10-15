@@ -27,11 +27,14 @@ function setup(status = 'IN_TRANSIT', consumed = false) {
 
 describe('additive supply lifecycle', () => {
   it('keeps old creation behavior when status is omitted', async () => {
-    const { service, tx } = setup();
+    const { service, tx, bus } = setup();
     await service.createSupply(dto);
     expect(tx.supply.create.mock.calls[0][0].data.status).toBe('RECEIVED');
     expect(tx.batch.create).toHaveBeenCalledTimes(1);
     expect(tx.batchBalance.create.mock.calls[0][0].data.availableQuantity).toBe(3);
+    expect(bus.publishEvent).toHaveBeenCalledWith('app.events', 'inventory.stock.changed', {
+      eventId: expect.any(String), reason: 'SUPPLY_CREATED', occurredAt: expect.any(String), supplyId: 1, productIds: [7],
+    });
   });
   it.each(['IN_TRANSIT', 'CANCELLED'])('does not put %s supplies into warehouse stock', async (status) => {
     const { service, tx } = setup();
@@ -41,17 +44,29 @@ describe('additive supply lifecycle', () => {
     expect(tx.batch.create).not.toHaveBeenCalled();
   });
   it('accepts an expected supply once; a repeated save does not duplicate batches', async () => {
-    const { service, tx } = setup();
+    const { service, tx, bus } = setup();
     await service.updateSupply(1, { ...dto, status: 'RECEIVED' } as any);
     await service.updateSupply(1, { ...dto, status: 'RECEIVED' } as any);
     expect(tx.batch.create).toHaveBeenCalledTimes(1);
     expect(tx.supply.update).toHaveBeenCalledTimes(2);
+    expect(bus.publishEvent).toHaveBeenCalledWith('app.events', 'inventory.stock.changed', {
+      eventId: expect.any(String), reason: 'SUPPLY_UPDATED', occurredAt: expect.any(String), supplyId: 1, productIds: [7],
+    });
   });
   it('preserves stock history when metadata is edited after consumption', async () => {
     const { service, tx } = setup('RECEIVED', true);
     await service.updateSupply(1, { ...dto, supplier: 'Updated', status: 'RECEIVED' } as any);
     expect(tx.batch.deleteMany).not.toHaveBeenCalled();
     expect(tx.batchBalance.update).not.toHaveBeenCalled();
+  });
+  it('includes both removed and added products when supply contents are changed', async () => {
+    const { service, bus } = setup('RECEIVED');
+    bus.sendCommand.mockResolvedValue({ success: true, data: [{ id: 8, name: 'Milk' }] });
+    const response = await service.updateSupply(1, { ...dto, items: [{ ...item, productId: 8 }] });
+    expect(response.items[0].productId).toBe(8);
+    expect(bus.publishEvent).toHaveBeenCalledWith('app.events', 'inventory.stock.changed', expect.objectContaining({
+      reason: 'SUPPLY_UPDATED', supplyId: 1, productIds: [7, 8],
+    }));
   });
   it('preserves batch IDs when an unused received line is corrected', async () => {
     const { service, tx } = setup('RECEIVED', false);

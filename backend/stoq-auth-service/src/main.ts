@@ -38,6 +38,7 @@ async function bootstrap() {
     origin: 'http://localhost:5173',
   });
 
-  await app.listen(process.env.PORT ?? 3001);
+  app.enableShutdownHooks();
+  await app.listen(process.env.PORT ?? 3001, process.env.HOST ?? '127.0.0.1');
 }
 bootstrap();

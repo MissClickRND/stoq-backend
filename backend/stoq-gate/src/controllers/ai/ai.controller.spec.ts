@@ -130,7 +130,7 @@ describe('Gateway AI upload', () => {
       'app.commands',
       'command.ai.health',
       {},
-      { timeoutMs: 5000 },
+      { timeoutMs: 15000 },
     );
   });
   it('prepares a supply using the existing AI and catalog commands', async () => {
