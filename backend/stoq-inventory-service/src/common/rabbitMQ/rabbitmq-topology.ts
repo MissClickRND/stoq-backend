@@ -10,6 +10,9 @@ export const QUEUES = {
   CATALOG_COMMANDS: "catalog.commands",
   INVENTORY_COMMANDS: "inventory.commands",
   RECOMMENDATION_COMMANDS: "recommendation.commands",
+
+  GATEWAY_EVENTS: "gateway.events",
+  RECOMMENDATION_EVENTS: "recommendation.events",
 } as const;
 
 export const ROUTING_KEYS = {
@@ -23,6 +26,8 @@ export const ROUTING_KEYS = {
   GET_PRODUCT: "command.catalog.get_product", // GET /product
   GET_PRODUCT_BY_ID: "command.catalog.get_product_by_id", // GET /product/:id
   DEL_PRODUCT_BY_ID: "command.catalog.del_product_by_id", // DEL /product/:id
+
+  RESOLVE_UPD_PRODUCTS: "command.catalog.resolve_upd_products",
 
   GET_UNIT: "command.catalog.get_unit", // GET /units/
   GET_UNIT_BY_ID: "command.catalog.get_unit_by_id", // GET /units/:id
@@ -44,23 +49,35 @@ export const ROUTING_KEYS = {
   GET_ORDER: "command.order.get_order", // GET /orders
   GET_ORDER_BY_ID: "command.order.get_order_by_id", // GET /orders/:id
   DEL_ORDER_BY_ID: "command.order.del_order_by_id", // DEL /orders/:id
+  GET_ORDERS_TODAY_STATISTICS: "command.order.get_today_statistics", // Internal order statistics query
 
   CREATE_SUPPLY: "command.inventory.create_supply", // POST /supplies
   GET_SUPPLY: "command.inventory.get_supply", // GET /supplies
   GET_SUPPLY_BY_ID: "command.inventory.get_supply_by_id", // GET /supplies/:id
 
+  GET_INVENTORY_STOCK: "command.inventory.get_stock", // Для остатков
   GET_INVENTORY: "command.inventory.get_inventory", // GET /inventory
   GET_INVENTORY_BY_ID: "command.inventory.get_inventory_by_id", // GET /inventory/:id
+  GET_EXPIRING_INVENTORY: "command.inventory.get_expiring_inventory", // GET /inventory/expiring
   UPDATE_QUANTITY_INVENTORY: "command.inventory.update_quantity_inventory", // PUT /inventory
 
-  GET_INVENTORY_STOCK: "command.inventory.get_stock", // Для остатков
+  DEDUCT_STOCK_INVENTORY: "command.inventory.deduct_stock_inventory",
+  CHECK_STOCK_INVENTORY: "command.inventory.check_stock_inventory",
+  EXPIRE_INVENTORY: "command.inventory.expire_inventory",
 
-  GET_RECOMMENDATION: "command.recommendation.get_recommendation", // GET /recommendation
+  GET_RECOMMENDATION: "command.recommendation.get_stop_list", // GET /recommendation
   GET_DISH_RECOMMENDATION: "command.recommendation.get_dish_recommendation", // GET /recommendations/dishes
 
   GET_DISH_STATISTICS: "command.recommendation.get_dish_statistics", // GET /statistics/dishes
+  GET_ORDER_STATISTICS_TODAY:
+    "command.recommendation.get_order_statistics_today", // GET /statistics/orders/today
 
   GET_DEPENDENCY_GRAPH: "command.recommendation.get_dependency_graph", // GET /analytics/graph
+
+  ORDER_CREATED: "order.created",
+  STOP_LIST_UPDATED: "recommendation.stop_list.updated",
+  STOCK_CHANGED: "inventory.stock.changed",
+  BATCH_EXPIRED: "inventory.batch_expired",
 
   AI_COMMANDS_MASK: "command.ai.#",
   CATALOG_COMMANDS_MASK: "command.catalog.#",

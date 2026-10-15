@@ -5,9 +5,16 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { SuppliesModule } from "./supplies/supplies.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { CommandBusModule } from "./common/rabbitMQ/command-bus.module";
+import { ScheduleModule } from "@nestjs/schedule";
 
 @Module({
-  imports: [PrismaModule, SuppliesModule, InventoryModule, CommandBusModule],
+  imports: [
+    PrismaModule,
+    SuppliesModule,
+    InventoryModule,
+    CommandBusModule,
+    ScheduleModule.forRoot(),
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

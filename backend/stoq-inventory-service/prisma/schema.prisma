@@ -49,8 +49,10 @@ model Batch {
 
   @@index([supplyId])
   @@index([productId])
+  @@index([status, expiresAt]) 
   @@map("batches")
   @@schema("inventory")
+  
 }
 
 model BatchBalance {
@@ -61,6 +63,29 @@ model BatchBalance {
   batch             Batch    @relation(fields: [batchId], references: [id])
 
   @@map("batch_balances")
+  @@schema("inventory")
+}
+
+
+model StockMovement {
+  id        Int      @id @default(autoincrement())
+  orderId   String   @map("order_id")
+  batchId   Int      @map("batch_id")
+  productId Int      @map("product_id")
+  quantity  Decimal  @db.Decimal // Отрицательное для списания, положительное для оприходования
+  type      String   // Например: 'DEDUCTION', 'RECEIPT'
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("stock_movements")
+  @@schema("inventory")
+}
+
+model IdempotencyKey {
+  key       String   @id
+  orderId   String   @map("order_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
   @@schema("inventory")
 }
 
@@ -76,7 +101,7 @@ enum BatchStatus {
   ACTIVE
   DEPLETED
   EXPIRED
-  QUARANTINED
+  RUNNINGOUT
 
   @@schema("inventory")
 }

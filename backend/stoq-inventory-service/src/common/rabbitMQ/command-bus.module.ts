@@ -2,7 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { CommandBusService } from './command-bus.service';
-import { EXCHANGES } from './rabbitmq-topology';
+// 1. ДОБАВИТЬ ИМПОРТ КОНСТАНТ
+import {
+  EXCHANGES,
+  QUEUES,
+  ROUTING_KEYS,
+} from 'src/common/rabbitMQ/rabbitmq-topology';
 
 @Module({
   imports: [
@@ -15,9 +20,18 @@ import { EXCHANGES } from './rabbitmq-topology';
           'amqp://admin:admin@localhost:5672',
         ),
         connectionInitOptions: { wait: true },
+
+        enableControllerDiscovery: true,
+
         exchanges: [
           {
             name: EXCHANGES.COMMANDS,
+            type: 'topic',
+            createExchangeIfNotExists: true,
+            durable: true,
+          },
+          {
+            name: EXCHANGES.EVENTS,
             type: 'topic',
             createExchangeIfNotExists: true,
             durable: true,

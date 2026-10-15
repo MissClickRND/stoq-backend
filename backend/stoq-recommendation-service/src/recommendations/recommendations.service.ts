@@ -114,10 +114,8 @@ export class RecommendationService {
 
   async refreshAfterEvent(reason: string) {
     try {
-      // Пересчитываем статусы
       const statuses = await this.getDishStatuses(true);
 
-      // Если рекомендации тоже зависят от склада/заказов — обновляем и их
       await this.getDishRecommendations(true).catch((err) => {
         this.logger.warn(
           `Не удалось пересчитать рекомендации после события ${reason}`,
@@ -185,6 +183,7 @@ export class RecommendationService {
       batches: mapRawInventoryToBatches(inventory),
     };
   }
+  ы;
 
   private calculateRecommendations(
     dishes: DishData[],
@@ -201,7 +200,7 @@ export class RecommendationService {
 
         if (
           !stock ||
-          stock.availableQuantity < 0 ||
+          stock.availableQuantity <= 0 ||
           item.quantityPerPortion <= 0
         ) {
           maxPortions = 0;
@@ -227,14 +226,10 @@ export class RecommendationService {
             item.productName,
           );
 
-          if (stock.expiredQuantity > 0) {
-            this.addStopReason(
-              reasons,
-              StopListReason.EXPIRED_INGREDIENT,
-              item.productId,
-              item.productName,
-            );
-          }
+          // УДАЛЕНО: проверка stock.expiredQuantity > 0
+          // Причина: новый InventoryService.getStock явно фильтрует
+          // expiresAt: { gt: new Date() }, поэтому просроченные партии
+          // сюда просто не попадают. Если товар закончился, причина всегда INSUFFICIENT_STOCK.
         }
       }
 

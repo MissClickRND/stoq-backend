@@ -71,6 +71,79 @@ export class DishesService {
     }
   }
 
+  async createMany(data: CreateDishDto[]) {
+    if (!data || data.length === 0) {
+      throw new BadRequestException("Список блюд не может быть пустым");
+    }
+
+    for (const dish of data) {
+      const ids = dish.recipeItems.map((item) => item.productId);
+      if (new Set(ids).size !== ids.length || !ids.length) {
+        throw new BadRequestException(
+          `Добавьте ингредиенты без повторяющихся продуктов для блюда "${dish.name}"`,
+        );
+      }
+    }
+
+    const allProductIds = [
+      ...new Set(
+        data.flatMap((dish) => dish.recipeItems.map((item) => item.productId)),
+      ),
+    ];
+
+    const count = await this.prisma.product.count({
+      where: { id: { in: allProductIds }, isDeleted: false },
+    });
+    if (count !== allProductIds.length) {
+      throw new BadRequestException(
+        "Один или несколько продуктов не существуют или удалены",
+      );
+    }
+
+    const stock = await this.fetchStock(allProductIds);
+
+    try {
+      const createdDishes = await this.prisma.$transaction(async (tx) => {
+        return Promise.all(
+          data.map((dishData) =>
+            tx.dish.create({
+              data: {
+                name: dishData.name.trim(),
+                description: dishData.description?.trim(),
+                imageURL: dishData.imageURL?.trim(),
+                salePrice: dishData.salePrice,
+                category: dishData.category?.trim(),
+                recipeItems: {
+                  create: dishData.recipeItems.map((item) => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                  })),
+                },
+              },
+              include: {
+                recipeItems: {
+                  include: { product: { include: { unit: true } } },
+                },
+              },
+            }),
+          ),
+        );
+      });
+
+      return this.enrichWithStock(createdDishes, stock);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException(
+          "Одно или несколько блюд с таким названием уже существуют",
+        );
+      }
+      throw error;
+    }
+  }
+
   async findAll(search?: string) {
     const dishes = await this.prisma.dish.findMany({
       where: {

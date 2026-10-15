@@ -41,16 +41,40 @@ export class DishesController {
   @Post()
   @ApiOperation({ summary: 'Создать блюдо' })
   @ApiBody({ type: CreateDishDto })
-  @ApiCreatedResponse({ type: DishResponseDto, description: 'Блюдо успешно создано' })
+  @ApiCreatedResponse({
+    type: DishResponseDto,
+    description: 'Блюдо успешно создано',
+  })
   @ApiBadRequestResponse({ description: 'Переданы некорректные данные блюда' })
   @ApiConflictResponse({
     description: 'Блюдо с таким названием уже существует',
   })
   async create(@Body() dto: CreateDishDto) {
-    const payload = { dto: dto };
+    const payload = { dto };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.CREATE_DISHES,
+      payload,
+    );
+    return this.handleRpcResponse(response);
+  }
+
+  @Post('batch')
+  @ApiOperation({ summary: 'Создать несколько блюд (пакетное создание)' })
+  @ApiBody({ type: CreateDishDto, isArray: true })
+  @ApiCreatedResponse({
+    type: [DishResponseDto],
+    description: 'Блюда успешно созданы',
+  })
+  @ApiBadRequestResponse({ description: 'Переданы некорректные данные блюд' })
+  @ApiConflictResponse({
+    description: 'Одно или несколько блюд с таким названием уже существуют',
+  })
+  async createMany(@Body() dtos: CreateDishDto[]) {
+    const payload = { dtos };
+    const response = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.CREATE_DISHES_MANY,
       payload,
     );
     return this.handleRpcResponse(response);
@@ -64,9 +88,12 @@ export class DishesController {
     description: 'Подстрока для поиска по названию блюда',
     example: 'беф',
   })
-  @ApiOkResponse({ type: DishResponseDto, isArray: true, description: 'Список активных блюд' })
+  @ApiOkResponse({
+    type: [DishResponseDto],
+    description: 'Список активных блюд',
+  })
   async findAll(@Query('search') search?: string) {
-    const payload = { search: search };
+    const payload = { search };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_DISHES,
@@ -82,7 +109,7 @@ export class DishesController {
   @ApiBadRequestResponse({ description: 'Некорректный ID блюда' })
   @ApiNotFoundResponse({ description: 'Блюдо не найдено' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    const payload = { id: id };
+    const payload = { id };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_DISHES_BY_ID,
@@ -94,11 +121,14 @@ export class DishesController {
   @Delete(':id')
   @ApiOperation({ summary: 'Удалить блюдо' })
   @ApiParam({ name: 'id', description: 'ID блюда', example: 1 })
-  @ApiOkResponse({ type: DishResponseDto, description: 'Блюдо помечено как удалённое' })
+  @ApiOkResponse({
+    type: DishResponseDto,
+    description: 'Блюдо помечено как удалённое',
+  })
   @ApiBadRequestResponse({ description: 'Некорректный ID блюда' })
   @ApiNotFoundResponse({ description: 'Блюдо не найдено' })
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const payload = { id: id };
+    const payload = { id };
     const response = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.DEL_DISHES_BY_ID,

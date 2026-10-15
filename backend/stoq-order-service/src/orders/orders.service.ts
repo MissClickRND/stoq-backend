@@ -106,6 +106,69 @@ export class OrdersService {
     }
   }
 
+  private async checkStockAvailability(items: OrderItemDto[]) {
+    const inventoryItems = items.map((item) => ({
+      productId: item.dishId,
+      quantity: item.quantity,
+    }));
+
+    let response: any;
+    try {
+      response = await this.commandBusService.sendCommand(
+        EXCHANGES.COMMANDS,
+        ROUTING_KEYS.CHECK_STOCK_INVENTORY,
+        { dto: inventoryItems },
+      );
+    } catch {
+      throw new ServiceUnavailableException(
+        'Сервис склада недоступен для проверки остатков',
+      );
+    }
+
+    if (!response?.success) {
+      throw new HttpException(
+        response?.error?.message ?? 'Недостаточно товаров на складе',
+        response?.error?.status ?? 400,
+      );
+    }
+  }
+
+  private async deductStock(
+    orderId: number,
+    items: { dishId: number; quantity: number }[],
+  ) {
+    const inventoryItems = items.map((item) => ({
+      productId: item.dishId,
+      quantity: item.quantity,
+    }));
+
+    let response: any;
+    try {
+      response = await this.commandBusService.sendCommand(
+        EXCHANGES.COMMANDS,
+        ROUTING_KEYS.DEDUCT_STOCK_INVENTORY,
+        {
+          dto: {
+            idempotencyKey: `order-${orderId}-deduction`,
+            orderId: orderId,
+            items: inventoryItems,
+          },
+        },
+      );
+    } catch {
+      throw new ServiceUnavailableException(
+        'Сервис склада недоступен для списания товаров',
+      );
+    }
+
+    if (!response?.success) {
+      throw new HttpException(
+        response?.error?.message ?? 'Ошибка списания товаров со склада',
+        response?.error?.status ?? 400,
+      );
+    }
+  }
+
   async create(dto: CreateOrderDto = {}) {
     const date = dto.date === undefined ? new Date() : new Date(dto.date);
     const type = dto.type ?? 'dine-in';
@@ -125,6 +188,7 @@ export class OrdersService {
 
     if (items.length > 0) {
       this.assertUniqueDishes(items);
+      await this.checkStockAvailability(items);
     }
 
     const data: Prisma.OrderCreateInput = {
@@ -172,6 +236,8 @@ export class OrdersService {
     if (dishIds.some((id) => existingDishIds.includes(id))) {
       throw new ConflictException('Одно или несколько блюд уже есть в заказе');
     }
+
+    await this.checkStockAvailability(dto.items);
 
     const pricedItems = await this.priceItems(dto.items);
     await this.prisma.$transaction(
@@ -259,15 +325,23 @@ export class OrdersService {
   async changeStatus(payload: { id: number; status: OrderStatus }) {
     await this.ensureOrderExists(payload.id);
 
-    return this.toResponse(
-      await this.prisma.order.update({
-        where: { id: payload.id },
-        data: {
-          status: payload.status,
-        },
-        include: { items: true },
-      }),
-    );
+    const order = await this.prisma.order.update({
+      where: { id: payload.id },
+      data: {
+        status: payload.status,
+      },
+      include: { items: true },
+    });
+
+    // Списываем товары со склада при подтверждении или завершении заказа
+    if (
+      payload.status === OrderStatus.confirmed ||
+      payload.status === OrderStatus.completed
+    ) {
+      await this.deductStock(order.id, order.items);
+    }
+
+    return this.toResponse(order);
   }
 
   async remove(id: number) {

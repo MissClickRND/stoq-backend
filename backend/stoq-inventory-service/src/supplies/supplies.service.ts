@@ -25,19 +25,44 @@ export class SupplyService {
   ) {}
 
   async createSupply(dto: CreateSupplyDto) {
-    if (!dto.supplier?.trim() || !dto.supplyNumber?.trim() || !dto.items?.length ||
-      dto.items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0 ||
-        !Number.isFinite(item.totalPrice) || item.totalPrice < 0 || item.totalPrice > 1e12 ||
-        Math.abs(item.totalPrice * 100 - Math.round(item.totalPrice * 100)) > 1e-6)) {
-      throw new BadRequestException('Укажите поставщика, позиции с положительным количеством и сумму от 0 ₽ (до 2 знаков)');
+    if (
+      !dto.supplier?.trim() ||
+      !dto.supplyNumber?.trim() ||
+      !dto.items?.length ||
+      dto.items.some(
+        (item) =>
+          !Number.isFinite(item.quantity) ||
+          item.quantity <= 0 ||
+          !Number.isFinite(item.totalPrice) ||
+          item.totalPrice < 0 ||
+          item.totalPrice > 1e12 ||
+          Math.abs(item.totalPrice * 100 - Math.round(item.totalPrice * 100)) >
+            1e-6,
+      )
+    ) {
+      throw new BadRequestException(
+        "Укажите поставщика, позиции с положительным количеством и сумму от 0 ₽ (до 2 знаков)",
+      );
     }
-    const response: any = await this.commandBusService.sendCommand(EXCHANGES.COMMANDS,
-      ROUTING_KEYS.GET_PRODUCT, { ids: [...new Set(dto.items.map((item) => item.productId))] });
-    if (!response?.success) throw new HttpException('Не удалось проверить продукты поставки', response?.error?.status ?? 503);
+    const response: any = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS,
+      ROUTING_KEYS.GET_PRODUCT,
+      { ids: [...new Set(dto.items.map((item) => item.productId))] },
+    );
+    if (!response?.success)
+      throw new HttpException(
+        "Не удалось проверить продукты поставки",
+        response?.error?.status ?? 503,
+      );
     const productsById = buildProductsByIdMap(response.data);
     if (dto.items.some((item) => !productsById.has(item.productId)))
-      throw new BadRequestException('Один или несколько продуктов не существуют');
-    const totalPrice = dto.items.reduce((sum, item) => sum.plus(item.totalPrice), new Prisma.Decimal(0));
+      throw new BadRequestException(
+        "Один или несколько продуктов не существуют",
+      );
+    const totalPrice = dto.items.reduce(
+      (sum, item) => sum.plus(item.totalPrice),
+      new Prisma.Decimal(0),
+    );
     try {
       return await this.prisma.$transaction(async (tx) => {
         const supply = await tx.supply.create({
@@ -59,21 +84,25 @@ export class SupplyService {
               supplyId: supply.id,
               productId: item.productId,
               initialQuantity: item.quantity,
-              price: new Prisma.Decimal(item.totalPrice).div(item.quantity).toDecimalPlaces(6),
+              price: new Prisma.Decimal(item.totalPrice)
+                .div(item.quantity)
+                .toDecimalPlaces(6),
               expiresAt,
               status: "ACTIVE",
             },
           });
 
-          items.push(await tx.supplyItem.create({
-            data: {
-              supplyId: supply.id,
-              productId: item.productId,
-              quantity: item.quantity,
-              totalPrice: item.totalPrice,
-              expiresAt,
-            },
-          }));
+          items.push(
+            await tx.supplyItem.create({
+              data: {
+                supplyId: supply.id,
+                productId: item.productId,
+                quantity: item.quantity,
+                totalPrice: item.totalPrice,
+                expiresAt,
+              },
+            }),
+          );
 
           await tx.batchBalance.create({
             data: {
@@ -109,15 +138,26 @@ export class SupplyService {
 
     const productsById = buildProductsByIdMap(products);
     const query = search?.trim();
-    const productIds = products.filter((product) => !query || product.name.toLocaleLowerCase('ru-RU')
-      .includes(query.toLocaleLowerCase('ru-RU'))).map((product) => product.id);
+    const productIds = products
+      .filter(
+        (product) =>
+          !query ||
+          product.name
+            .toLocaleLowerCase("ru-RU")
+            .includes(query.toLocaleLowerCase("ru-RU")),
+      )
+      .map((product) => product.id);
 
     const supplies = await this.prisma.supply.findMany({
-      where: query ? { OR: [
-        { supplyNumber: { contains: query, mode: 'insensitive' } },
-        { supplier: { contains: query, mode: 'insensitive' } },
-        { items: { some: { productId: { in: productIds } } } },
-      ] } : {},
+      where: query
+        ? {
+            OR: [
+              { supplyNumber: { contains: query, mode: "insensitive" } },
+              { supplier: { contains: query, mode: "insensitive" } },
+              { items: { some: { productId: { in: productIds } } } },
+            ],
+          }
+        : {},
       include: {
         items: {
           orderBy: { id: "asc" },

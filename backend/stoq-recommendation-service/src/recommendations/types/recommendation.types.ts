@@ -94,23 +94,26 @@ export function mapRawCatalogToDishes(rawDishes: RawCatalogDish[]): DishData[] {
   }));
 }
 
-export function mapRawInventoryToStocks(rawBatches: RawInventoryBatch[]): ProductStock[] {
+export function mapRawInventoryToStocks(
+  rawBatches: RawInventoryBatch[],
+): ProductStock[] {
   const stocksByProduct = new Map<number, ProductStock>();
   const now = Date.now();
 
   for (const batch of rawBatches) {
-    const stock = stocksByProduct.get(batch.productId) ?? {
-      productId: batch.productId,
-      availableQuantity: 0,
-      expiredQuantity: 0,
-    };
-
-    const quantity = batch.balance?.availableQuantity;
+    const quantity =
+      batch.balance?.availableQuantity ?? batch.availableQuantity ?? 0;
     const expiresAt = Date.parse(batch.expiresAt);
 
     if (typeof quantity !== "number" || Number.isNaN(expiresAt)) {
       continue;
     }
+
+    const stock = stocksByProduct.get(batch.productId) ?? {
+      productId: batch.productId,
+      availableQuantity: 0,
+      expiredQuantity: 0,
+    };
 
     if (expiresAt <= now) {
       stock.expiredQuantity += quantity;
@@ -124,21 +127,35 @@ export function mapRawInventoryToStocks(rawBatches: RawInventoryBatch[]): Produc
   return Array.from(stocksByProduct.values());
 }
 
-
-export function mapRawInventoryToBatches(rawBatches: RawInventoryBatch[]): RecommendationBatch[] {
-  const validStatuses: BatchStatus[] = ["ACTIVE", "DEPLETED", "EXPIRED", "QUARANTINED"];
+export function mapRawInventoryToBatches(
+  rawBatches: RawInventoryBatch[],
+): RecommendationBatch[] {
+  const validStatuses: BatchStatus[] = [
+    "ACTIVE",
+    "DEPLETED",
+    "EXPIRED",
+    "QUARANTINED",
+  ];
 
   return rawBatches
-    .filter((batch) => batch.productId && batch.availableQuantity != null && batch.expiresAt)
+    .filter((batch) => {
+      const hasQuantity =
+        batch.availableQuantity != null ||
+        batch.balance?.availableQuantity != null;
+      return batch.productId && hasQuantity && batch.expiresAt;
+    })
     .map((batch) => {
       const rawStatus = batch.status as BatchStatus;
-      
+
+      const availableQuantity =
+        batch.balance?.availableQuantity ?? batch.availableQuantity ?? 0;
+
       return {
         productId: batch.productId,
-        availableQuantity: Number(batch.availableQuantity),
+        availableQuantity: Number(availableQuantity),
         price: typeof batch.price === "number" ? batch.price : null,
         expiresAt: new Date(batch.expiresAt),
-        status: validStatuses.includes(rawStatus) ? rawStatus : "DEPLETED",
+        status: validStatuses.includes(rawStatus) ? rawStatus : "ACTIVE",
       };
     });
 }

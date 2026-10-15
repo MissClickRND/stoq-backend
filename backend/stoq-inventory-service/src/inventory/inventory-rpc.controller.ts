@@ -8,6 +8,10 @@ import {
 import { executeRpc } from "../common/utils/rpc-handler";
 import { InventoryService } from "./inventory.service";
 import { UpdateQuantityDto } from "./dto/request/update-quantity.dto";
+import {
+  DeductStockDto,
+  DeductStockItemDto,
+} from "./dto/request/deduct-stock.dto";
 
 @Injectable()
 export class InventoryRPCController {
@@ -47,5 +51,45 @@ export class InventoryRPCController {
   })
   updateQuantity(payload: { dto: UpdateQuantityDto }) {
     return executeRpc(() => this.inventoryService.updateQuantity(payload.dto));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.GET_EXPIRING_INVENTORY,
+    queue: QUEUES.INVENTORY_COMMANDS,
+  })
+  expiring(payload: { daysThreshold: number }) {
+    return executeRpc(() =>
+      this.inventoryService.getExpiringSoonBatches(payload.daysThreshold),
+    );
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.DEDUCT_STOCK_INVENTORY,
+    queue: QUEUES.INVENTORY_COMMANDS,
+  })
+  deductStock(payload: { dto: DeductStockDto }) {
+    return executeRpc(() => this.inventoryService.deductStock(payload.dto));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.CHECK_STOCK_INVENTORY,
+    queue: QUEUES.INVENTORY_COMMANDS,
+  })
+  checkStockAvailability(payload: { dto: DeductStockItemDto[] }) {
+    return executeRpc(() =>
+      this.inventoryService.checkStockAvailability(payload.dto),
+    );
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.EXPIRE_INVENTORY,
+    queue: QUEUES.INVENTORY_COMMANDS,
+  })
+  expire() {
+    return executeRpc(() => this.inventoryService.processJustExpiredBatches());
   }
 }

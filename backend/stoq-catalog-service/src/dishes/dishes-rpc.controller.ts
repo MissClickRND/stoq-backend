@@ -1,6 +1,10 @@
 import { RabbitRPC } from "@golevelup/nestjs-rabbitmq";
 import { Injectable } from "@nestjs/common";
-import { EXCHANGES, QUEUES, ROUTING_KEYS } from "src/common/rabbitMQ/rabbitmq-topology";
+import {
+  EXCHANGES,
+  QUEUES,
+  ROUTING_KEYS,
+} from "src/common/rabbitMQ/rabbitmq-topology";
 import { executeRpc } from "src/common/utils/rpc-handler";
 import { DishesService } from "./dishes.service";
 import { CreateDishDto } from "./dto/create-dish.dto";
@@ -25,6 +29,15 @@ export class DishesRPCController {
   })
   findAll(payload: { search?: string }) {
     return executeRpc(() => this.dishesService.findAll(payload.search));
+  }
+
+  @RabbitRPC({
+    exchange: EXCHANGES.COMMANDS,
+    routingKey: ROUTING_KEYS.CREATE_DISHES_MANY,
+    queue: QUEUES.CATALOG_COMMANDS,
+  })
+  createMany(payload: { dtos: CreateDishDto[] }) {
+    return executeRpc(() => this.dishesService.createMany(payload.dtos));
   }
 
   @RabbitRPC({
