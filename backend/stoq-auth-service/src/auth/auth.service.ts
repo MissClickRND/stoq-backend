@@ -2,6 +2,7 @@ import {
     BadRequestException,
     ForbiddenException,
     Injectable,
+    NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
@@ -11,7 +12,9 @@ import * as bcrypt from "bcrypt";
 import type { StringValue } from "ms";
 import { Role } from "@prisma/client";
 import { LoginDto } from "./dto/login.dto";
-import { RegisterRestaurantDto } from "./dto/register-restaurant.dyo";
+import { RegisterRestaurantDto } from "./dto/register-restaurant.dto";
+import { ApproveUserDto } from "./dto/approve-user.dto";
+import { UpdateRestaurantDto } from "./dto/update-restaurant.dto";
 
 @Injectable()
 export class AuthService {
@@ -172,6 +175,149 @@ export class AuthService {
         });
 
         return { ok: true };
+    }
+
+    async getPendingUsers(adminId: number) {
+        const admin = await this.prisma.user.findUnique({
+            where: {
+                id: adminId,
+            },
+            select: {
+                role: true,
+                restaurantId: true,
+            },
+        });
+
+        if (!admin || admin.role !== Role.ADMIN) {
+            throw new ForbiddenException("Недостаточно прав");
+        }
+
+        return this.prisma.user.findMany({
+            where: {
+                restaurantId: admin.restaurantId,
+                role: Role.WAIT_CONFIRM,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: "asc" },
+        });
+    }
+
+    async approveUser(adminId: number, userId: number, dto: ApproveUserDto) {
+        const admin = await this.prisma.user.findUnique({
+            where: {
+                id: adminId,
+            },
+            select: {
+                role: true,
+                restaurantId: true,
+            },
+        });
+
+        if (!admin || admin.role !== Role.ADMIN) {
+            throw new ForbiddenException("Недостаточно прав");
+        }
+
+        const user = await this.prisma.user.findFirst({
+            where: {
+                id: userId,
+                restaurantId: admin.restaurantId,
+                role: Role.WAIT_CONFIRM,
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException(
+                "Ожидающий подтверждения сотрудник не найден",
+            );
+        }
+
+        return this.prisma.user.update({
+            where: {
+                id: userId,
+            },
+            data: {
+                role: dto.role,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                role: true,
+            },
+        });
+    }
+
+    async deleteUser(adminId: number, userId: number) {
+        const admin = await this.prisma.user.findUnique({
+            where: {
+                id: adminId,
+            },
+            select: {
+                role: true,
+                restaurantId: true,
+            },
+        });
+
+        if (!admin || admin.role !== Role.ADMIN) {
+            throw new ForbiddenException("Недостаточно прав");
+        }
+
+        const user = await this.prisma.user.findFirst({
+            where: {
+                id: userId,
+                restaurantId: admin.restaurantId,
+                role: {
+                    in: [
+                        Role.WAIT_CONFIRM,
+                        Role.MANAGER,
+                        Role.WAITER,
+                        Role.STOREKEEPER,
+                    ],
+                },
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException("Сотрудник не найден");
+        }
+
+        await this.prisma.user.delete({
+            where: {
+                id: userId,
+            },
+        });
+
+        return { message: "Сотрудник удалён" };
+    }
+
+    async updateRestaurant(adminId: number, dto: UpdateRestaurantDto) {
+        const admin = await this.prisma.user.findUnique({
+            where: {
+                id: adminId,
+            },
+            select: {
+                role: true,
+                restaurantId: true,
+            },
+        });
+
+        if (!admin || admin.role !== Role.ADMIN) {
+            throw new ForbiddenException("Недостаточно прав");
+        }
+
+        const data = Object.fromEntries(
+            Object.entries(dto).filter(([, value]) => value !== undefined),
+        );
+
+        return this.prisma.restaurant.update({
+            where: { id: admin.restaurantId },
+            data,
+        });
     }
 
     async refreshTokens(userId: number, refreshTokenFromCookie: string) {
