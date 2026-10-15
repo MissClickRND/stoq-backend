@@ -32,7 +32,8 @@ describe('inventory notifications', () => {
   it('includes products removed by a manual update while preserving the update response', async () => {
     const { service, prisma, tx, bus } = setup();
     prisma.batchBalance = { findMany: jest.fn(async () => [{ batchId: 9 }]) };
-    tx.batch.findMany = jest.fn(async () => [{ id: 9, productId: 7, status: 'ACTIVE' }]);
+    tx.batch.findMany = jest.fn(async () => [{ id: 9, productId: 7, status: 'ACTIVE',
+      balance: { availableQuantity: new Prisma.Decimal(10) } }]);
     tx.batch.update = jest.fn(async () => ({ id: 9, status: 'DEPLETED' }));
     tx.batchBalance.update.mockResolvedValue({ batchId: 9, availableQuantity: 0 });
     const response = await service.updateQuantity({ items: [{ batchId: 9, quantity: 0 }] });

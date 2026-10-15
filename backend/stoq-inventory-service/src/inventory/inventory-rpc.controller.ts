@@ -17,6 +17,21 @@ import {
 export class InventoryRPCController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_INVENTORY_STATISTICS, queue: QUEUES.INVENTORY_COMMANDS })
+  statistics() {
+    return executeRpc(() => this.inventoryService.getStatistics());
+  }
+
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_INVENTORY_WRITE_OFFS, queue: QUEUES.INVENTORY_COMMANDS })
+  writeOffs() {
+    return executeRpc(() => this.inventoryService.getWriteOffs());
+  }
+
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.PREVIEW_INVENTORY, queue: QUEUES.INVENTORY_COMMANDS })
+  preview(payload: { dto: UpdateQuantityDto }) {
+    return executeRpc(() => this.inventoryService.preview(payload.dto));
+  }
+
   @RabbitRPC({
     exchange: EXCHANGES.COMMANDS,
     routingKey: ROUTING_KEYS.GET_INVENTORY_STOCK,

@@ -266,6 +266,7 @@ export class DishesService {
           quantity,
           stock,
           price,
+          cost: price == null ? null : Math.round(quantity * price * 100) / 100,
           portions: quantity > 0 ? Math.floor(stock / quantity + 1e-9) : 0,
           expiresAt: rows.length
             ? rows.map((row) => row.expiresAt).sort()[0]

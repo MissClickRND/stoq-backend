@@ -373,6 +373,18 @@ export class AuthService {
         return users.map((user) => this.employeeStatus(user));
     }
 
+    async getAdminStatistics(adminId: number) {
+        const admin = await this.requireAdmin(adminId);
+        const restaurantId = admin.restaurantId;
+        const [employees, invitations, requests, admins] = await Promise.all([
+            this.prisma.user.count({ where: { restaurantId } }),
+            this.prisma.invitation.count({ where: { restaurantId, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } }),
+            this.prisma.user.count({ where: { restaurantId, role: Role.WAIT_CONFIRM, blocked: false } }),
+            this.prisma.user.count({ where: { restaurantId, role: Role.ADMIN, blocked: false } }),
+        ]);
+        return { employees, invitations, requests, admins };
+    }
+
     async getAdminRestaurant(adminId: number) {
         const admin = await this.requireAdmin(adminId);
         return this.prisma.restaurant.findUniqueOrThrow({ where: { id: admin.restaurantId }, select: { id: true, name: true, address: true, phone: true, email: true } });
@@ -437,12 +449,12 @@ export class AuthService {
         return { ok: true };
     }
 
-    private requireTestTools() {
-        if (this.config.get('ENABLE_TEST_TOOLS') !== 'true' && this.config.get('NODE_ENV') === 'production') throw new NotFoundException('Тестовые инструменты отключены');
+    private requireDemoRestaurants() {
+        if (this.config.get('ENABLE_DEMO_RESTAURANTS') !== 'true' && this.config.get('ENABLE_TEST_TOOLS') !== 'true' && this.config.get('NODE_ENV') === 'production') throw new NotFoundException('Демо-рестораны отключены');
     }
 
     async createDemoRestaurant(adminId: number) {
-        this.requireTestTools();
+        this.requireDemoRestaurants();
         await this.requireAdmin(adminId);
         const suffix = randomUUID();
         const passwordHash = await bcrypt.hash(randomUUID(), 10);
@@ -457,13 +469,13 @@ export class AuthService {
     }
 
     async listDemoRestaurants() {
-        this.requireTestTools();
+        this.requireDemoRestaurants();
         const restaurants = await this.prisma.restaurant.findMany({ where: { isDemo: true, demoReady: true }, select: { id: true, name: true, address: true, isDemo: true, users: { where: { blocked: false, role: { in: ACTIVE_ROLES } }, select: accountSelect } }, orderBy: { createdAt: 'desc' } });
         return restaurants.map(({ users, ...restaurant }) => ({ ...restaurant, accounts: users }));
     }
 
     async demoLogin(restaurantId: number, role: Role) {
-        this.requireTestTools();
+        this.requireDemoRestaurants();
         if (!Number.isSafeInteger(restaurantId) || restaurantId < 1 || !ACTIVE_ROLES.includes(role)) throw new BadRequestException('Некорректный ресторан или роль');
         const restaurant = await this.prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true, isDemo: true, demoReady: true } });
         if (!restaurant?.isDemo || !restaurant.demoReady) throw new NotFoundException('Демо-ресторан не найден');
@@ -476,7 +488,7 @@ export class AuthService {
     }
 
     async completeDemoRestaurant(adminId: number, restaurantId: number) {
-        this.requireTestTools();
+        this.requireDemoRestaurants();
         await this.requireAdmin(adminId);
         if (!Number.isSafeInteger(restaurantId) || restaurantId < 1) throw new BadRequestException('Некорректный ID ресторана');
         const result = await this.prisma.restaurant.updateMany({ where: { id: restaurantId, isDemo: true }, data: { demoReady: true } });

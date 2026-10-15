@@ -25,8 +25,8 @@ export class DemoRestaurantController {
   constructor(private readonly auth: AuthService, private readonly demo: DemoRestaurantService, private readonly config: ConfigService) {}
 
   private enabled() {
-    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_TOOLS !== 'true')
-      throw new ForbiddenException('Тестовый ресторан отключён. Включите ENABLE_TEST_TOOLS только на тестовом окружении');
+    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEMO_RESTAURANTS !== 'true' && process.env.ENABLE_TEST_TOOLS !== 'true')
+      throw new ForbiddenException('Тестовый ресторан отключён. Для демо-ресторанов включите ENABLE_DEMO_RESTAURANTS в gateway и auth');
   }
 
   @Post('restaurant')

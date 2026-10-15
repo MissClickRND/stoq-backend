@@ -16,6 +16,10 @@ export const QUEUES = {
 } as const;
 
 export const ROUTING_KEYS = {
+  GET_ORDER_PERIOD_STATISTICS: "command.order.get_period_statistics",
+  GET_DASHBOARD_STATISTICS: "command.recommendation.get_dashboard_statistics",
+  GET_DISH_DETAILS_STATISTICS: "command.recommendation.get_dish_details_statistics",
+  GET_SHORTAGE_STATISTICS: "command.recommendation.get_shortage_statistics",
   CHANGE_ORDER_STATUS: "command.order.change_status",
 
   AI_RECOGNIZE_UPD: "command.ai.recognize_upd",

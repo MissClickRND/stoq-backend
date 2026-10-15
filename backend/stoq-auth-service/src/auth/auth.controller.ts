@@ -130,6 +130,12 @@ export class AuthController {
         return { user: result.user };
     }
 
+    @Get('admin/statistics')
+    @Roles(Role.ADMIN)
+    getAdminStatistics(@CurrentUser() user: AuthUser) {
+        return this.auth.getAdminStatistics(user.id);
+    }
+
     @Get('admin/users')
     @Roles(Role.ADMIN)
     getEmployees(@CurrentUser() user: AuthUser) {

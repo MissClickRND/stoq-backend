@@ -60,6 +60,10 @@ export const ROUTING_KEYS = {
   GET_SUPPLY_BY_ID: "command.inventory.get_supply_by_id", // GET /supplies/:id
 
   GET_INVENTORY_STOCK: "command.inventory.get_stock", // Для остатков
+  GET_INVENTORY_STATISTICS: "command.inventory.get_statistics",
+  GET_INVENTORY_WRITE_OFFS: "command.inventory.get_write_offs",
+  PREVIEW_INVENTORY: "command.inventory.preview",
+  GET_SUPPLY_STATISTICS: "command.inventory.get_supply_statistics",
   GET_INVENTORY: "command.inventory.get_inventory", // GET /inventory
   GET_INVENTORY_BY_ID: "command.inventory.get_inventory_by_id", // GET /inventory/:id
   GET_EXPIRING_INVENTORY: "command.inventory.get_expiring_inventory", // GET /inventory/expiring

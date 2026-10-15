@@ -4,6 +4,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { ShortageTracker } from "./shortage-tracker";
 import Redis from "ioredis";
 import { restaurantId } from '../common/tenant/restaurant-context';
 import { StopListReason } from "@prisma/client";
@@ -43,6 +44,7 @@ export class RecommendationService {
     private readonly commandBusService: CommandBusService,
     @Inject(REDIS_CLIENT)
     private readonly redis: Redis,
+    private readonly shortageTracker: ShortageTracker,
   ) {}
 
   async getStopListDishes(
@@ -94,8 +96,18 @@ export class RecommendationService {
       }
     }
 
-    const { dishes, stocks } = await this.fetchStockData();
-    const result = this.calculateRecommendations(dishes, stocks);
+    const result = await this.shortageTracker.reconcile(async () => {
+      const { catalog, inventory } = await this.fetchRawData();
+      const dishes = mapRawCatalogToDishes(catalog);
+      const stocks = mapRawInventoryToStocks(inventory);
+      const statuses = this.calculateRecommendations(dishes, stocks);
+      const stockMap = new Map(stocks.map(stock => [stock.productId, stock.availableQuantity]));
+      return { result: statuses, dishes: statuses.map(status => ({ dishId: status.dishId, status: status.status,
+        products: (catalog.find(dish => dish.id === status.dishId)?.recipeItems ?? [])
+          .filter(item => item.quantity > 0 && this.wholePortions(stockMap.get(item.productId) ?? 0, item.quantity) <= this.lowStockLimit)
+          .map(item => ({ productId: item.productId, name: item.product?.name ?? `Продукт №${item.productId}`,
+            unit: item.product?.unit ?? null })) })) };
+    });
 
     await this.redis.set(
       this.CACHE_KEY_STATUSES,
@@ -185,6 +197,10 @@ export class RecommendationService {
   }
   ы;
 
+  private wholePortions(quantity: number, quantityPerPortion: number): number {
+    return quantityPerPortion > 0 ? Math.floor(quantity / quantityPerPortion + 1e-9) : 0;
+  }
+
   private calculateRecommendations(
     dishes: DishData[],
     stocks: ProductStock[],
@@ -213,9 +229,7 @@ export class RecommendationService {
           continue;
         }
 
-        const portions = Math.floor(
-          stock.availableQuantity / item.quantityPerPortion,
-        );
+        const portions = this.wholePortions(stock.availableQuantity, item.quantityPerPortion);
         maxPortions = Math.min(maxPortions, portions);
 
         if (portions === 0) {
@@ -312,7 +326,7 @@ export class RecommendationService {
           (sum, b) => sum + b.availableQuantity,
           0,
         );
-        const portions = Math.floor(totalQuantity / item.quantityPerPortion);
+        const portions = this.wholePortions(totalQuantity, item.quantityPerPortion);
 
         maxPortions = Math.min(maxPortions, portions);
         if (portions === 0) continue;

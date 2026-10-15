@@ -44,8 +44,9 @@ npx prisma generate
 ID незавершённого ресторана; он не появляется в списке тестового входа.
 `GET /test/restaurants` возвращает готовые демо-рестораны и безопасные описания
 аккаунтов. `POST /test/restaurants/:id/login` с `{ role }` устанавливает обычные
-auth-cookies. Пароли и JWT не возвращаются в JSON интерфейсу. В production все
-тестовые методы отключены, если явно не включён `ENABLE_TEST_TOOLS=true`.
+auth-cookies. Пароли и JWT не возвращаются в JSON интерфейсу. На production демо-
+рестораны разрешает `ENABLE_DEMO_RESTAURANTS=true` в gateway и auth. Сброс данных
+управляется отдельным `ENABLE_TEST_TOOLS`, который остаётся выключенным.
 
 ## Склад и гостевые заказы
 

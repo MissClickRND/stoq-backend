@@ -441,71 +441,61 @@ export class OrdersService {
     return { message: `Заказ ${id} успешно удалён` };
   }
 
-  async getTodayStatistics() {
+  private period(days: number) {
+    if (!Number.isInteger(days) || days < 1 || days > 30) throw new BadRequestException('Период должен быть от 1 до 30 дней');
     const now = new Date();
+    const today = new Date(now.getTime() + 3 * 3600000).toISOString().slice(0, 10);
+    const start = new Date(`${today}T00:00:00+03:00`);
+    start.setUTCDate(start.getUTCDate() - days + 1);
+    return { now, start };
+  }
 
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const startOfTomorrow = new Date(startOfDay);
-    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-
+  async getPeriodStatistics(days = 14) {
+    const { now, start } = this.period(days);
     const orders = await this.prisma.order.findMany({
-      where: { restaurantId: restaurantId(),
-        created_at: {
-          gte: startOfDay,
-          lt: startOfTomorrow,
-        },
-      },
-      select: {
-        status: true,
-        items: {
-          select: {
-            price: true,
-            quantity: true,
-          },
-        },
-      },
+      where: { restaurantId: restaurantId(), date: { gte: start, lte: now } },
+      select: { date: true, status: true, items: { select: { dishId: true, quantity: true, price: true } } },
     });
+    type Sale = { dishId: number; quantity: number; revenue: number | null };
+    const points = Array.from({ length: days }, (_, index) => {
+      const day = new Date(start.getTime() + index * 86400000 + 3 * 3600000);
+      return { date: day.toISOString().slice(0, 10),
+        label: day.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' }),
+        orders: 0, completed: 0, revenue: 0 as number | null, dishes: [] as Sale[] };
+    });
+    for (const order of orders) {
+      if (order.status === OrderStatus.cancelled || order.status === OrderStatus.rejected) continue;
+      const key = new Date(order.date.getTime() + 3 * 3600000).toISOString().slice(0, 10);
+      const point = points.find(p => p.date === key);
+      if (!point) continue;
+      point.orders++;
+      if (order.status !== OrderStatus.completed) continue;
+      point.completed++;
+      for (const item of order.items) {
+        const revenue = item.price == null ? null : new Prisma.Decimal(item.price).mul(item.quantity).toNumber();
+        point.revenue = point.revenue === null || revenue === null ? null : new Prisma.Decimal(point.revenue).add(revenue).toNumber();
+        let sale = point.dishes.find(d => d.dishId === item.dishId);
+        if (!sale) { sale = { dishId: item.dishId, quantity: 0, revenue: 0 }; point.dishes.push(sale); }
+        sale.quantity += item.quantity;
+        sale.revenue = sale.revenue === null || revenue === null ? null : new Prisma.Decimal(sale.revenue).add(revenue).toNumber();
+      }
+    }
+    return { days, timezone: 'Europe/Moscow', from: start.toISOString(), to: now.toISOString(),
+      summary: { orders: points.reduce((n, p) => n + p.orders, 0), completed: points.reduce((n, p) => n + p.completed, 0),
+        revenue: points.some(p => p.revenue === null) ? null : points.reduce((n, p) => n.add(p.revenue!), new Prisma.Decimal(0)).toNumber() }, points };
+  }
 
-    const activeStatuses: OrderStatus[] = [
-      OrderStatus.created,
-      OrderStatus.pending_reservation,
-      OrderStatus.confirmed,
-    ];
-
-    const completedOrders = orders.filter(
-      (order) => order.status === OrderStatus.completed,
-    );
-
-    const active = orders.filter((order) =>
-      activeStatuses.includes(order.status),
-    ).length;
-
-    const revenue = completedOrders.reduce((total, order) => {
-      const orderTotal = order.items.reduce((sum, item) => {
-        if (item.price === null) {
-          return sum.add(
-            (item.price ?? new Prisma.Decimal(0)).mul(item.quantity),
-          );
-        }
-
-        return sum.add(item.price.mul(item.quantity));
-      }, new Prisma.Decimal(0));
-
-      return total.add(orderTotal);
-    }, new Prisma.Decimal(0));
-
-    const cancelled = orders.filter(
-      (o) => o.status === OrderStatus.cancelled,
-    ).length;
-
-    return {
-      total: orders.length,
-      completed: completedOrders.length,
-      cancelled,
-      revenue: revenue.toDecimalPlaces(2).toString(),
-      active,
-    };
+  async getTodayStatistics() {
+    const { now, start } = this.period(1);
+    const orders = await this.prisma.order.findMany({
+      where: { restaurantId: restaurantId(), date: { gte: start, lte: now } },
+      select: { status: true, items: { select: { price: true, quantity: true } } },
+    });
+    const completed = orders.filter(o => o.status === OrderStatus.completed);
+    const items = completed.flatMap(o => o.items);
+    return { total: orders.length, completed: completed.length,
+      cancelled: orders.filter(o => o.status === OrderStatus.cancelled || o.status === OrderStatus.rejected).length,
+      active: orders.filter(o => [OrderStatus.created, OrderStatus.pending_reservation, OrderStatus.confirmed].includes(o.status as any)).length,
+      revenue: items.some(i => i.price == null) ? null : items.reduce((n, i) => n.add(new Prisma.Decimal(i.price!).mul(i.quantity)), new Prisma.Decimal(0)).toDecimalPlaces(2).toString() };
   }
 }

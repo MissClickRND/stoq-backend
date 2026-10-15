@@ -19,7 +19,7 @@ describe('additive lifecycle and test endpoints', () => {
   });
   afterAll(() => app.close());
   beforeEach(() => { sendCommand.mockReset(); process.env.NODE_ENV = originalEnvironment; delete process.env.ENABLE_TEST_TOOLS; });
-  afterEach(() => { process.env.NODE_ENV = originalEnvironment; delete process.env.ENABLE_TEST_TOOLS; });
+  afterEach(() => { process.env.NODE_ENV = originalEnvironment; delete process.env.ENABLE_TEST_TOOLS; delete process.env.ENABLE_DEMO_RESTAURANTS; });
   const dto = { supplyNumber: 'S1', supplier: 'ABC', status: 'IN_TRANSIT', items: [{ productId: 7, quantity: 2, totalPrice: 200, expiresAt: '2030-01-01' }] };
   it('forwards status on creation and routes editing through the existing command bus', async () => {
     sendCommand.mockResolvedValue({ success: true, data: { id: 4 } });
@@ -57,5 +57,12 @@ describe('additive lifecycle and test endpoints', () => {
     const response = await request(app.getHttpServer()).post('/test/reset').send({ confirmation: 'RESET' }).expect(503);
     expect(response.body.completed).toEqual({ orders: { orders: 1 } });
     expect(sendCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps destructive resets disabled when only production demo restaurants are enabled', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ENABLE_DEMO_RESTAURANTS = 'true';
+    await request(app.getHttpServer()).post('/test/reset').send({ confirmation: 'RESET' }).expect(403);
+    expect(sendCommand).not.toHaveBeenCalled();
   });
 });

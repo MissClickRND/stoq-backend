@@ -2,6 +2,7 @@ import { restaurantId, restaurantStorage } from '../common/tenant/restaurant-con
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -29,6 +30,130 @@ export class InventoryService {
     private prisma: PrismaService,
     private readonly commandBusService: CommandBusService,
   ) {}
+
+  private async getCatalogProducts(): Promise<any[]> {
+    const response: any = await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS, ROUTING_KEYS.GET_PRODUCT, {},
+    );
+    if (!response?.success || !Array.isArray(response.data)) {
+      throw new HttpException('Не удалось получить продукты', response?.error?.status ?? 503);
+    }
+    return response.data;
+  }
+
+  async getStatistics() {
+    const products = await this.getCatalogProducts();
+    const now = new Date();
+    const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const batches = await this.prisma.batch.findMany({
+      where: { restaurantId: restaurantId() }, include: { balance: true },
+    });
+    const quantities = new Map<number, Decimal>();
+    const expiring = new Set<number>();
+    const expirationHistory = await this.prisma.stockMovement.findMany({
+      where: { restaurantId: restaurantId(), OR: [
+        { type: 'WRITE_OFF', orderId: 'SYSTEM_EXPIRATION' }, { type: 'SYSTEM_EXPIRATION' },
+      ] }, select: { productId: true }, distinct: ['productId'],
+    });
+    const spoiled = new Set(expirationHistory.map(movement => movement.productId));
+    for (const batch of batches) {
+      const quantity = batch.balance?.availableQuantity ?? new Decimal(0);
+      if (batch.status === BatchStatus.EXPIRED ||
+        (batch.expiresAt <= now && quantity.greaterThan(0) &&
+          [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT].includes(batch.status as any))) spoiled.add(batch.productId);
+      if (![BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT].includes(batch.status as any) ||
+        batch.expiresAt <= now || !quantity.greaterThan(0)) continue;
+      quantities.set(batch.productId, (quantities.get(batch.productId) ?? new Decimal(0)).plus(quantity));
+      if (batch.expiresAt <= soon) expiring.add(batch.productId);
+    }
+    const currentProducts = products.filter(p => !p.deletedAt && !p.isDeleted);
+    return {
+      totalProducts: currentProducts.length,
+      depletedProducts: currentProducts.filter(p => !(quantities.get(p.id)?.greaterThan(0))).length,
+      expiringProducts: currentProducts.filter(p => expiring.has(p.id)).length,
+      spoiledProducts: spoiled.size,
+      lowStockProducts: currentProducts.filter(p => (quantities.get(p.id) ?? new Decimal(0)).lte(this.LOW_STOCK_THRESHOLD))
+        .map(product => ({ product, quantity: Number(quantities.get(product.id) ?? 0) })),
+    };
+  }
+
+  async getWriteOffs() {
+    const now = new Date();
+    const movements = await this.prisma.stockMovement.findMany({
+      where: { restaurantId: restaurantId(), type: { in: ['WRITE_OFF', 'SYSTEM_EXPIRATION'] } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const automaticBatchIds = movements.filter(m => m.orderId === 'SYSTEM_EXPIRATION' || m.type === 'SYSTEM_EXPIRATION').map(m => m.batchId);
+    const batches = await this.prisma.batch.findMany({
+      where: { restaurantId: restaurantId(), OR: [
+        { status: BatchStatus.EXPIRED },
+        { expiresAt: { lte: now }, status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] }, balance: { availableQuantity: { gt: 0 } } },
+        { id: { in: automaticBatchIds } },
+      ] },
+      include: { balance: true }, orderBy: [{ expiresAt: 'desc' }, { id: 'desc' }],
+    });
+    if (!batches.length) return [];
+    const cancelled = await this.prisma.supply.findMany({
+      where: { restaurantId: restaurantId(), id: { in: [...new Set(batches.map(b => b.supplyId))] }, status: 'CANCELLED' },
+      select: { id: true },
+    });
+    const cancelledIds = new Set(cancelled.map(s => s.id));
+    const products = await this.getCatalogProducts();
+    const productsById = new Map(products.map(p => [p.id, p]));
+    const automaticIds = new Set(automaticBatchIds);
+    return batches.filter(b => !cancelledIds.has(b.supplyId) && (
+      b.status === BatchStatus.EXPIRED || automaticIds.has(b.id) ||
+      (b.expiresAt <= now && [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT].includes(b.status as any) && Number(b.balance?.availableQuantity ?? 0) > 0)
+    )).map(batch => {
+      const history = movements.filter(m => m.batchId === batch.id && Number(m.quantity) < 0 &&
+        (m.orderId === 'SYSTEM_EXPIRATION' || m.type === 'SYSTEM_EXPIRATION'));
+      const quantity = history.reduce((sum, m) => sum.minus(m.quantity), new Decimal(0));
+      const last = history.reduce<Date | null>((latest, m) => !latest || m.createdAt > latest ? m.createdAt : latest, null);
+      return {
+        batchId: batch.id, productId: batch.productId,
+        product: productsById.get(batch.productId) ?? { id: batch.productId, name: `Продукт №${batch.productId}`, unit: null },
+        writtenOffQuantity: history.length ? Number(quantity) : null,
+        writtenOffAt: last?.toISOString() ?? null,
+        expiresAt: batch.expiresAt.toISOString(), reason: 'EXPIRED' as const,
+      };
+    });
+  }
+
+  private validateInventoryItems(dto: UpdateQuantityDto) {
+    if (!Array.isArray(dto?.items) || dto.items.length === 0 || dto.items.some(item =>
+      !item || !Number.isSafeInteger(item.batchId) || item.batchId < 1 ||
+      !Number.isFinite(item.quantity) || item.quantity < 0 ||
+      (item.remove !== undefined && typeof item.remove !== 'boolean')) ||
+      new Set(dto.items.map(item => item.batchId)).size !== dto.items.length ||
+      (dto.includeReport !== undefined && typeof dto.includeReport !== 'boolean')) {
+      throw new BadRequestException('Некорректные данные инвентаризации или повторяющиеся партии');
+    }
+  }
+
+  private compareInventory(dto: UpdateQuantityDto, batches: { id: number; status: BatchStatus; expiresAt?: Date; balance?: { availableQuantity: Decimal } | null }[]) {
+    const byId = new Map(batches.map(batch => [batch.id, batch]));
+    const statistics = { checked: dto.items.length, updated: 0, deleted: 0, unchanged: 0 };
+    for (const item of dto.items) {
+      const batch = byId.get(item.batchId);
+      if (!batch?.balance) throw new NotFoundException(`Партия не найдена: ${item.batchId}`);
+      if (batch.status === BatchStatus.EXPIRED || (batch.expiresAt && batch.expiresAt <= new Date())) {
+        throw new ConflictException('Просроченные партии доступны только для просмотра');
+      }
+      if (item.remove) statistics.deleted++;
+      else if (batch.balance.availableQuantity.equals(item.quantity)) statistics.unchanged++;
+      else statistics.updated++;
+    }
+    return statistics;
+  }
+
+  async preview(dto: UpdateQuantityDto) {
+    this.validateInventoryItems(dto);
+    const batches = await this.prisma.batch.findMany({
+      where: { restaurantId: restaurantId(), id: { in: dto.items.map(item => item.batchId) } },
+      include: { balance: true },
+    });
+    return this.compareInventory(dto, batches);
+  }
 
   private getBatchStatusByQuantity(
     quantity: Decimal,
@@ -61,6 +186,7 @@ export class InventoryService {
     const batches = await this.prisma.batch.findMany({
       where: { restaurantId: restaurantId(),
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
+        expiresAt: { gt: new Date() },
         productId: { in: productIds },
         balance: { availableQuantity: { gt: 0 } },
       },
@@ -154,6 +280,8 @@ export class InventoryService {
       where: { restaurantId: restaurantId(),
         productId,
         status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
+        expiresAt: { gt: new Date() },
+        balance: { availableQuantity: { gt: 0 } },
       },
       include: { balance: true },
     });
@@ -182,6 +310,7 @@ export class InventoryService {
   }
 
   async updateQuantity(dto: UpdateQuantityDto) {
+    this.validateInventoryItems(dto);
     const batchIds = dto.items.map((item) => item.batchId);
 
     const existingBalances = await this.prisma.batchBalance.findMany({
@@ -201,14 +330,16 @@ export class InventoryService {
     const result = await this.prisma.$transaction(async (tx) => {
       const batches = await tx.batch.findMany({
         where: { restaurantId: restaurantId(),  id: { in: batchIds } },
-        select: { id: true, status: true, productId: true },
+        include: { balance: true },
       });
+
+      const statistics = this.compareInventory(dto, batches);
 
       const statusMap = new Map(batches.map((b) => [b.id, b.status]));
       const updates: Promise<any>[] = [];
 
       for (const item of dto.items) {
-        const newQty = new Decimal(item.quantity);
+        const newQty = new Decimal(item.remove ? 0 : item.quantity);
         const currentStatus = statusMap.get(item.batchId);
 
         updates.push(
@@ -235,12 +366,15 @@ export class InventoryService {
       return {
         updates: await Promise.all(updates),
         productIds: [...new Set(batches.map((batch) => batch.productId))],
+        statistics,
       };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     await this.publish("MANUAL_UPDATE", { batchIds, productIds: result.productIds });
 
-    return result.updates;
+    return dto.includeReport
+      ? { batches: result.updates, statistics: result.statistics, completedAt: new Date().toISOString() }
+      : result.updates;
   }
 
   async writeOffBatch(batchId: number) {

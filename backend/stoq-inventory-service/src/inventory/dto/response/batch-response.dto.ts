@@ -1,4 +1,5 @@
 import { ProductResponseDto } from "./product-response.dto";
+import { Decimal } from '@prisma/client/runtime/client';
 
 export interface BatchBalanceResponseDto {
   availableQuantity: number;
@@ -15,6 +16,7 @@ export interface BatchResponseDto {
   price: number | null;
   totalPrice: number | null;
   availableQuantity: number;
+  productQuantity?: number;
   Quantity: number;
   expiresAt: string;
   status: string;
@@ -35,5 +37,8 @@ export function mapBatchToDto(batch: any): BatchResponseDto {
 }
 
 export function mapBatchesToDto(batches: any[]): BatchResponseDto[] {
-  return batches.map(mapBatchToDto);
+  const totals = new Map<number, Decimal>();
+  for (const batch of batches) totals.set(batch.productId,
+    (totals.get(batch.productId) ?? new Decimal(0)).plus(batch.balance.availableQuantity));
+  return batches.map(batch => ({ ...mapBatchToDto(batch), productQuantity: Number(totals.get(batch.productId)) }));
 }

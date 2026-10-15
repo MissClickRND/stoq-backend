@@ -29,6 +29,36 @@ export class SupplyService {
     private readonly commandBusService: CommandBusService,
   ) {}
 
+  async getStatistics(id?: number) {
+    const totalFor = (items: { totalPrice: Prisma.Decimal | null }[]): number | null =>
+      items.some(item => item.totalPrice == null) ? null :
+        Number(items.reduce((sum, item) => sum.plus(item.totalPrice!), new Prisma.Decimal(0)));
+    if (id !== undefined) {
+      if (!Number.isSafeInteger(id) || id < 1) throw new BadRequestException('Некорректный ID поставки');
+      const supply = await this.prisma.supply.findUnique({
+        where: { restaurantId: restaurantId(), id }, include: { items: true },
+      });
+      if (!supply) throw new NotFoundException('Поставка не найдена');
+      return { id: supply.id, supplyNumber: supply.supplyNumber, receivedAt: supply.receivedAt.toISOString(),
+        positions: supply.items.length, total: totalFor(supply.items) };
+    }
+    const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit' })
+      .formatToParts(new Date());
+    const year = Number(month.find(part => part.type === 'year')!.value);
+    const monthNumber = Number(month.find(part => part.type === 'month')!.value);
+    const from = new Date(Date.UTC(year, monthNumber - 1, 1, -3));
+    const to = new Date(Date.UTC(year, monthNumber, 1, -3));
+    const supplies = await this.prisma.supply.findMany({
+      where: { restaurantId: restaurantId(), status: { not: 'CANCELLED' }, receivedAt: { gte: from, lt: to } },
+      include: { items: true },
+    });
+    const received = supplies.filter(supply => supply.status === 'RECEIVED');
+    const items = received.flatMap(supply => supply.items);
+    const total = totalFor(items);
+    return { month: `${year}-${String(monthNumber).padStart(2, '0')}`, count: supplies.length,
+      products: items.length, total, average: total == null ? null : received.length ? total / received.length : 0 };
+  }
+
   async resetBusinessData(confirmation: string) {
     if (confirmation !== 'RESET' || (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_TOOLS !== 'true')) {
       throw new ForbiddenException('Сброс тестовых данных отключён');

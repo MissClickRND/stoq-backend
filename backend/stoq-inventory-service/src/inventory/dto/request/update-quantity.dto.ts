@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsInt, IsNumber, Min, ValidateNested, ArrayNotEmpty } from "class-validator";
+import { IsInt, IsNumber, Min, ValidateNested, ArrayNotEmpty, IsBoolean, IsOptional, ArrayUnique } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class UpdateQuantityItemDto {
@@ -14,6 +14,11 @@ export class UpdateQuantityItemDto {
     @IsNumber({ maxDecimalPlaces: 3 })
     @Min(0)
     quantity!: number;
+
+    @ApiProperty({ required: false, description: 'Удалить остаток партии из активного списка' })
+    @IsOptional()
+    @IsBoolean()
+    remove?: boolean;
 }
 
 export class UpdateQuantityDto {
@@ -24,5 +29,11 @@ export class UpdateQuantityDto {
     @ValidateNested({ each: true })
     @Type(() => UpdateQuantityItemDto)
     @ArrayNotEmpty()
+    @ArrayUnique((item: UpdateQuantityItemDto) => item.batchId)
     items!: UpdateQuantityItemDto[];
+
+    @ApiProperty({ required: false, description: 'Вернуть серверный отчёт инвентаризации' })
+    @IsOptional()
+    @IsBoolean()
+    includeReport?: boolean;
 }

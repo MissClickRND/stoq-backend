@@ -12,7 +12,7 @@ export interface RawCatalogDish {
   recipeItems: Array<{
     productId: number;
     quantity: number;
-    product?: { name?: string };
+    product?: { name?: string; unit?: { id: number; name: string; shortName: string } };
   }>;
 }
 

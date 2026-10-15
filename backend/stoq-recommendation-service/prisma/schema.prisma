@@ -35,3 +35,31 @@ model StopListItem {
   @@index([restaurantId])
 }
 
+model ShortageTracking {
+  restaurantId Int @id
+  startedAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model DishAvailability {
+  restaurantId Int
+  dishId Int
+  status String
+  episode Int @default(0)
+  observedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([restaurantId, dishId])
+}
+
+model ShortageIncident {
+  restaurantId Int
+  dishId Int
+  episode Int
+  productId Int
+  productName String
+  unit Json?
+  occurredAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([restaurantId, dishId, episode, productId])
+  @@index([restaurantId, occurredAt])
+}
+

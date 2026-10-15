@@ -141,6 +141,12 @@ export class AuthController {
     });
   }
 
+  @Get('admin/statistics')
+  @ApiOperation({ summary: 'Статистика сотрудников и приглашений своего ресторана' })
+  statistics(@Req() req: Request) {
+    return this.auth.request(ROUTING_KEYS.AUTH_ADMIN_STATISTICS, { accessToken: accessTokenFrom(req.headers, req.cookies) });
+  }
+
   @Get('admin/users')
   @ApiOperation({ summary: 'Все сотрудники своего ресторана и их статусы' })
   users(@Req() req: Request) {

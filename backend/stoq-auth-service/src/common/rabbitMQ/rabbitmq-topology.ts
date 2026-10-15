@@ -3,6 +3,7 @@ export const EXCHANGES = { COMMANDS: "app.commands" } as const;
 export const QUEUES = { AUTH_COMMANDS: "auth.commands" } as const;
 
 export const ROUTING_KEYS = {
+  AUTH_ADMIN_STATISTICS: 'command.auth.admin_statistics',
   AUTH_ADMIN_USERS: 'command.auth.admin_users',
   AUTH_ADMIN_RESTAURANT: 'command.auth.admin_restaurant',
   AUTH_SET_USER_ROLE: 'command.auth.set_user_role',

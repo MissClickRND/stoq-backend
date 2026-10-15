@@ -1,3 +1,4 @@
+import { ShortageTracker } from "./shortage-tracker";
 import { Module } from "@nestjs/common";
 import { RecommendationService } from "./recommendations.service";
 import { RecommendationsRPCController } from "./recommendations-rpc.controller";
@@ -11,10 +12,11 @@ import { RecommendationEventsController } from "./recommendation-events.controll
   // controllers: [RecommendationsController],
   providers: [
     RecommendationService,
+    ShortageTracker,
     DependencyGraphService,
     RecommendationsRPCController,
     RecommendationEventsController,
   ],
-  exports: [RecommendationService],
+  exports: [RecommendationService, ShortageTracker],
 })
 export class RecommendationsModule {}

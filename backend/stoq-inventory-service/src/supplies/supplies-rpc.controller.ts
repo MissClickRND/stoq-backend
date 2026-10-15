@@ -9,6 +9,11 @@ import { executeRpc } from "../common/utils/rpc-handler";
 export class SupplyRPCController {
   constructor(private readonly supplyService: SupplyService) {}
 
+  @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.GET_SUPPLY_STATISTICS, queue: QUEUES.INVENTORY_COMMANDS })
+  statistics(payload: { id?: number }) {
+    return executeRpc(() => this.supplyService.getStatistics(payload.id));
+  }
+
   @RabbitRPC({ exchange: EXCHANGES.COMMANDS, routingKey: ROUTING_KEYS.RESET_INVENTORY_DATA, queue: QUEUES.INVENTORY_COMMANDS })
   reset(payload: { confirmation: string }) {
     return executeRpc(() => this.supplyService.resetBusinessData(payload.confirmation));

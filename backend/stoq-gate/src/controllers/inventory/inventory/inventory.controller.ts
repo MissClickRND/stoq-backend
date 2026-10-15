@@ -123,6 +123,30 @@ export class InventoryController {
     return this.handleRpcResponse(response);
   }
 
+  @Get('statistics')
+  @ApiOperation({ summary: 'Статистика продуктов и остатков склада' })
+  async getStatistics() {
+    return this.handleRpcResponse(await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY_STATISTICS, {},
+    ));
+  }
+
+  @Get('write-offs')
+  @ApiOperation({ summary: 'История автоматических списаний просроченных партий' })
+  async getWriteOffs() {
+    return this.handleRpcResponse(await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS, ROUTING_KEYS.GET_INVENTORY_WRITE_OFFS, {},
+    ));
+  }
+
+  @Post('preview')
+  @ApiOperation({ summary: 'Предварительные итоги инвентаризации по сохранённым остаткам' })
+  async preview(@Body() dto: UpdateQuantityDto) {
+    return this.handleRpcResponse(await this.commandBusService.sendCommand(
+      EXCHANGES.COMMANDS, ROUTING_KEYS.PREVIEW_INVENTORY, { dto },
+    ));
+  }
+
   @Get(':productId')
   @ApiOperation({ summary: 'Получить информацию о продукте на складе' })
   @ApiParam({

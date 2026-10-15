@@ -36,6 +36,11 @@ export class AuthRPCController {
 
   constructor(private readonly auth: AuthService) {}
 
+  @rpc(ROUTING_KEYS.AUTH_ADMIN_STATISTICS)
+  adminStatistics(payload: { accessToken: string }) {
+    return executeRpc(async () => this.auth.getAdminStatistics((await this.auth.verifyAccessToken(payload?.accessToken)).id));
+  }
+
   @rpc(ROUTING_KEYS.AUTH_ADMIN_USERS)
   adminUsers(payload: { accessToken: string }) {
     return executeRpc(async () => this.auth.getAdminUsers((await this.auth.verifyAccessToken(payload?.accessToken)).id));

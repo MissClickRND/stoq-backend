@@ -1,4 +1,5 @@
 import { ProductResponseDto } from "./product-response.dto";
+import { Decimal } from '@prisma/client/runtime/client';
 
 export interface SupplyResponseDto {
   id: number;
@@ -22,6 +23,8 @@ export interface SupplyItemResponseDto {
 
 export interface SupplyWithItemsResponseDto extends SupplyResponseDto {
   items: SupplyItemResponseDto[];
+  total: number | null;
+  positions: number;
 }
 
 export interface SupplyItemEntityLike {
@@ -105,6 +108,7 @@ export function mapSupplyWithItemsToDto(
 ): SupplyWithItemsResponseDto {
   return {
     ...mapSupplyToDto(supply),
+    ...getSupplyItemStatistics(supply.items ?? []),
     items: (supply.items ?? []).map((item) =>
       mapSupplyItemToDto(item, productsById.get(item.productId) ?? null),
     ),
@@ -117,11 +121,21 @@ export function mapSupplyWithMatchedItemsToDto(
 ): SupplyWithItemsResponseDto {
   return {
     ...mapSupplyToDto(supply),
+    ...getSupplyItemStatistics(supply.items ?? []),
     items: (supply.items ?? [])
       .filter((item) => productsById.has(item.productId))
       .map((item) =>
         mapSupplyItemToDto(item, productsById.get(item.productId) ?? null),
       ),
+  };
+}
+
+function getSupplyItemStatistics(items: SupplyItemEntityLike[]) {
+  return {
+    positions: items.length,
+    total: items.some(item => item.totalPrice == null) ? null : Number(items.reduce(
+      (sum, item) => sum.plus(String(item.totalPrice)), new Decimal(0),
+    )),
   };
 }
 

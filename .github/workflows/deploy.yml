@@ -74,6 +74,10 @@ jobs:
           grep -q 'inventory.idempotency_keys' "$RUNNER_TEMP/database-access.log"
           psql -h 127.0.0.1 -U postgres -d ci_inventory -v ON_ERROR_STOP=1 -c 'ALTER TABLE inventory.idempotency_keys OWNER TO stoq_ci_app'
           node deploy/check-db-access.cjs
+      - name: Verify persistent shortage analytics on PostgreSQL
+        env:
+          DATABASE_URL: postgresql://stoq_ci_app:ci-only-password@127.0.0.1:5432/ci_recommendation
+        run: node scripts/test-statistics-persistence.cjs
       - name: Deploy backend
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
