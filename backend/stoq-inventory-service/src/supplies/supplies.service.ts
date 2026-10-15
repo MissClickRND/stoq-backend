@@ -44,27 +44,34 @@ export class SupplyService {
         "Укажите поставщика, позиции с положительным количеством и сумму от 0 ₽ (до 2 знаков)",
       );
     }
+
     const response: any = await this.commandBusService.sendCommand(
       EXCHANGES.COMMANDS,
       ROUTING_KEYS.GET_PRODUCT,
       { ids: [...new Set(dto.items.map((item) => item.productId))] },
     );
-    if (!response?.success)
+
+    if (!response?.success) {
       throw new HttpException(
         "Не удалось проверить продукты поставки",
         response?.error?.status ?? 503,
       );
+    }
+
     const productsById = buildProductsByIdMap(response.data);
-    if (dto.items.some((item) => !productsById.has(item.productId)))
+    if (dto.items.some((item) => !productsById.has(item.productId))) {
       throw new BadRequestException(
         "Один или несколько продуктов не существуют",
       );
+    }
+
     const totalPrice = dto.items.reduce(
       (sum, item) => sum.plus(item.totalPrice),
       new Prisma.Decimal(0),
     );
+
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const supply = await tx.supply.create({
           data: {
             supplyNumber: dto.supplyNumber.trim(),
@@ -115,6 +122,12 @@ export class SupplyService {
 
         return mapSupplyWithItemsToDto({ ...supply, items }, productsById);
       });
+
+      // 4. 🚀 ПУБЛИКУЕМ СОБЫТИЕ ПОСЛЕ УСПЕШНОЙ ТРАНЗАКЦИИ
+      // Используем тот же ROUTING_KEYS.STOCK_CHANGED, который слушает RecommendationEventsController
+      await this.publishStockChanged("SUPPLY_CREATED", { supplyId: result.id });
+
+      return result;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -122,9 +135,18 @@ export class SupplyService {
       ) {
         throw new ConflictException("Поставка с таким номером уже существует");
       }
-
       throw error;
     }
+  }
+
+  private async publishStockChanged(reason: string, payload?: any) {
+    try {
+      await this.commandBusService.publishEvent(
+        EXCHANGES.EVENTS,
+        ROUTING_KEYS.STOCK_CHANGED,
+        payload || reason,
+      );
+    } catch (err) {}
   }
 
   async findAll(search?: string): Promise<SupplyWithItemsResponseDto[]> {

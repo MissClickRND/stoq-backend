@@ -20,15 +20,18 @@ import { Decimal } from "@prisma/client/runtime/client";
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
-  
-  private readonly LOW_STOCK_THRESHOLD = 10; 
+
+  private readonly LOW_STOCK_THRESHOLD = 10;
 
   constructor(
     private prisma: PrismaService,
     private readonly commandBusService: CommandBusService,
   ) {}
 
-  private getBatchStatusByQuantity(quantity: Decimal, currentStatus?: BatchStatus): BatchStatus {
+  private getBatchStatusByQuantity(
+    quantity: Decimal,
+    currentStatus?: BatchStatus,
+  ): BatchStatus {
     if (quantity.isZero()) {
       return BatchStatus.DEPLETED;
     }
@@ -98,8 +101,9 @@ export class InventoryService {
     if (
       !Array.isArray(productIds) ||
       productIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
-    )
+    ) {
       throw new NotFoundException("Некорректные идентификаторы продуктов");
+    }
 
     const uniqueProductIds = [...new Set(productIds)];
 
@@ -115,16 +119,14 @@ export class InventoryService {
 
     if (batches.length === 0) return [];
 
-    // Получаем уникальные ID продуктов, которые действительно есть в найденных партиях
     const batchProductIds = [...new Set(batches.map((b) => b.productId))];
 
-    // Параллельно запрашиваем информацию о продуктах
     const productResponses = await Promise.all(
       batchProductIds.map((id) =>
         this.commandBusService.sendCommand(
           EXCHANGES.COMMANDS,
           ROUTING_KEYS.GET_PRODUCT_BY_ID,
-          { productId: id },
+          { id },
         ),
       ),
     );
@@ -147,9 +149,9 @@ export class InventoryService {
 
   async findOne(productId: number): Promise<any[]> {
     const batches = await this.prisma.batch.findMany({
-      where: { 
-        productId, 
-        status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] }
+      where: {
+        productId,
+        status: { in: [BatchStatus.ACTIVE, BatchStatus.RUNNINGOUT] },
       },
       include: { balance: true },
     });
@@ -199,7 +201,7 @@ export class InventoryService {
         where: { id: { in: batchIds } },
         select: { id: true, status: true },
       });
-      
+
       const statusMap = new Map(batches.map((b) => [b.id, b.status]));
       const updates: Promise<any>[] = [];
 
@@ -211,18 +213,18 @@ export class InventoryService {
           tx.batchBalance.update({
             where: { batchId: item.batchId },
             data: { availableQuantity: newQty },
-          })
+          }),
         );
 
         if (currentStatus !== BatchStatus.EXPIRED) {
           const newStatus = this.getBatchStatusByQuantity(newQty);
-          
+
           if (newStatus !== currentStatus) {
             updates.push(
               tx.batch.update({
                 where: { id: item.batchId },
                 data: { status: newStatus },
-              })
+              }),
             );
           }
         }
@@ -340,7 +342,10 @@ export class InventoryService {
             : remainingToDeduct;
 
           const newAvailable = available.minus(deductAmount);
-          const newStatus = this.getBatchStatusByQuantity(newAvailable, batch.status);
+          const newStatus = this.getBatchStatusByQuantity(
+            newAvailable,
+            batch.status,
+          );
 
           await tx.batchBalance.update({
             where: { batchId: batch.id },
@@ -419,7 +424,7 @@ export class InventoryService {
         this.commandBusService.sendCommand(
           EXCHANGES.COMMANDS,
           ROUTING_KEYS.GET_PRODUCT_BY_ID,
-          { productId: id },
+          { id: id },
         ),
       ),
     );
@@ -433,7 +438,11 @@ export class InventoryService {
 
     return batches.map((batch) => {
       const diffTime = batch.expiresAt.getTime() - now.getTime();
-      const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      const daysRemaining = Math.max(
+        0,
+        Math.floor(diffTime / (1000 * 60 * 60 * 24)),
+      );
 
       return {
         batchId: batch.id,
@@ -521,14 +530,16 @@ export class InventoryService {
   }
 
   private async publish(reason: string) {
+    this.logger.log(`пытаюсь отправить событие: ${reason}`);
     try {
       await this.commandBusService.publishEvent(
         EXCHANGES.EVENTS,
         ROUTING_KEYS.STOCK_CHANGED,
         reason,
       );
+      this.logger.log(`СОБЫТИЕ ${reason} УСПЕШНО ОТПРАВЛЕНО`);
     } catch (err) {
-      this.logger.error(`Ошибка при публикации события ${reason}`, err);
+      this.logger.error(`ОШИБКА при публикации события ${reason}`, err);
       throw err;
     }
   }

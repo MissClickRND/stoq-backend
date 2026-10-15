@@ -18,7 +18,7 @@ export const QUEUES = {
 export const ROUTING_KEYS = {
   CHANGE_ORDER_STATUS: "command.order.change_status",
 
-  AI_RECOGNIZE_UPD: "command.ai.recognize_upd",
+  AI_RECOGNIZE_UPD: "command.ai.recognize_u-pd",
   AI_HEALTH: "command.ai.health",
 
   CREATE_PRODUCT: "command.catalog.create_product", // POST /product
@@ -33,7 +33,7 @@ export const ROUTING_KEYS = {
   GET_UNIT_BY_ID: "command.catalog.get_unit_by_id", // GET /units/:id
   CREATE_UNIT: "command.catalog.create_unit", // POST /units
 
-  CREATE_RECIPES: "command.catalog.create_recipes", // POST /product
+  CREATE_RECIPES: "command.catalog.create_recipes", // POST /productws://localhost:3000/recommendations
   ADD_ITEM_TO_RECIPES: "command.catalog.add_item_to_recipes", // POST /product/few
   GET_RECIPES: "command.catalog.get_recipes", // GET /product
   GET_RECIPES_BY_ID: "command.catalog.get_recipes_by_id", // GET /product/:id

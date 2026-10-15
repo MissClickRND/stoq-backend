@@ -49,14 +49,6 @@ export class RecommendationsWsGateway {
     return response.data as T;
   }
 
-  @ApiOperation({
-    summary: 'Получить стоп-лист',
-    description:
-      'Отправьте событие `recommendations:getStopList`. ' +
-      'Сервер ответит событием `recommendations:stopListResult` (успех) ' +
-      'или `recommendations:error` (ошибка).',
-  })
-  @ApiBody({ type: GetStopListRequestDto })
   @SubscribeMessage('recommendations:getStopList')
   async getStopList(
     @ConnectedSocket() client: Socket,
@@ -85,14 +77,6 @@ export class RecommendationsWsGateway {
     }
   }
 
-  @ApiOperation({
-    summary: 'Получить рекомендации блюд',
-    description:
-      'Отправьте событие `recommendations:getDishRecommendations`. ' +
-      'Сервер ответит событием `recommendations:dishRecommendationsResult` (успех) ' +
-      'или `recommendations:error` (ошибка).',
-  })
-  @ApiBody({ type: GetDishRecommendationsRequestDto })
   @SubscribeMessage('recommendations:getDishRecommendations')
   async getDishRecommendations(
     @ConnectedSocket() client: Socket,
@@ -121,12 +105,6 @@ export class RecommendationsWsGateway {
     }
   }
 
-  @ApiOperation({
-    summary: 'Обновление стоп-листа (Server-to-Client)',
-    description:
-      'Событие рассылается сервером всем подключенным клиентам при изменении стоп-листа. ' +
-      'Клиенту следует слушать событие `recommendations:stopListUpdated`.',
-  })
   broadcastStopListUpdated(payload: StopListUpdatedBroadcastDto) {
     this.server.emit('recommendations:stopListUpdated', payload);
   }

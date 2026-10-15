@@ -13,6 +13,8 @@ import { StatisticsController } from './controllers/recommendation/statistics/st
 import { RecommendationEventsListener } from './controllers/recommendation/recommendation/recommendation-events.listener';
 import { RecommendationsWsGateway } from './controllers/recommendation/recommendation/recommendation.ws.gateway';
 import { RecommendationsController } from './controllers/recommendation/recommendation/recommendation.controller';
+import { InventoryEventsListener } from './controllers/inventory/inventory/inventory-events.listener';
+import { InventoryWsGateway } from './controllers/inventory/inventory/inventory.ws.gateway';
 
 @Module({
   imports: [
@@ -31,6 +33,11 @@ import { RecommendationsController } from './controllers/recommendation/recommen
     StatisticsController,
     RecommendationsController,
   ],
-  providers: [RecommendationsWsGateway, RecommendationEventsListener],
+  providers: [
+    RecommendationsWsGateway,
+    RecommendationEventsListener,
+    InventoryEventsListener,
+    InventoryWsGateway,
+  ],
 })
 export class AppModule {}
